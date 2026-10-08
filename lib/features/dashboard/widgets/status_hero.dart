@@ -59,8 +59,8 @@ class StatusHero extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     controller.demoMode
-                        ? 'Demo: 1 min mission → 2 min social access'
-                        : '${controller.walkMinutes} min mission → ${controller.accessMinutes} min social access. After 18:00: indoor screen-free mission.',
+                        ? 'Demo: photo challenge or 1 min indoor activity → 2 min access'
+                        : 'Hourly new challenges • ${controller.accessMinutes} min access per completed mission. After 18:00: indoor-only.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

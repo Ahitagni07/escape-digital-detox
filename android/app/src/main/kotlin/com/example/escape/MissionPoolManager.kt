@@ -34,7 +34,10 @@ class MissionPoolManager(
         }
 
         synchronized(generationLock) {
-            if (generatingModes.contains(lockMode)) return
+            if (generatingModes.contains(lockMode)) {
+                onReady?.invoke(emptyList())
+                return
+            }
             generatingModes.add(lockMode)
         }
 
@@ -76,8 +79,10 @@ class MissionPoolManager(
                     val title = obj.optString("title").trim()
                     val instruction = obj.optString("instruction").trim()
                     val source = obj.optString("source", "gemma-local")
+                    // Ignore v6 cache: those prompts did not include photo targets.
+                    if (!obj.has("proofTag")) continue
                     if (title.isNotBlank() && instruction.isNotBlank()) {
-                        add(EscapeMission(title, instruction, source))
+                        add(EscapeMission(title, instruction, source, obj.optString("proofTag", "nature")))
                     }
                 }
             }
@@ -94,6 +99,7 @@ class MissionPoolManager(
                     put("title", mission.title)
                     put("instruction", mission.instruction)
                     put("source", mission.source)
+                    put("proofTag", mission.proofTag)
                 }
             )
         }

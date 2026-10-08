@@ -88,7 +88,7 @@ class NotificationHelper(
             .setContentText("${mission.title}: ${mission.instruction}")
             .setStyle(
                 Notification.BigTextStyle()
-                    .bigText("${mission.title}\n\n${mission.instruction}\n\nOpen ESCAPE to start.")
+                    .bigText("${mission.title}\n\n${mission.instruction}\n\nOpen ESCAPE to complete this challenge.")
             )
             .setAutoCancel(true)
             .setContentIntent(appPendingIntent())

@@ -1,6 +1,7 @@
 package com.example.escape
 
 import kotlin.math.max
+import android.os.SystemClock
 
 data class RecoveryProgress(
     val walkSeconds: Int,
@@ -17,6 +18,7 @@ class RecoveryProgressTracker(
         preferences.putLong(EscapeKeys.LOCK_STARTED_MS, System.currentTimeMillis())
         preferences.putInt(EscapeKeys.WALK_SECONDS, 0)
         preferences.putInt(EscapeKeys.WALK_STEPS, 0)
+        preferences.putLong(EscapeKeys.MISSION_START_ELAPSED, SystemClock.elapsedRealtime())
         stepTracker.startMission()
     }
 
@@ -25,6 +27,10 @@ class RecoveryProgressTracker(
         if (started <= 0L) {
             started = System.currentTimeMillis()
             preferences.putLong(EscapeKeys.LOCK_STARTED_MS, started)
+        }
+        val old = preferences.getLong(EscapeKeys.MISSION_START_ELAPSED, 0L)
+        if (old <= 0 || old > SystemClock.elapsedRealtime()) {
+            preferences.putLong(EscapeKeys.MISSION_START_ELAPSED, SystemClock.elapsedRealtime())
         }
         stepTracker.startMission()
     }
@@ -42,7 +48,14 @@ class RecoveryProgressTracker(
             preferences.putLong(EscapeKeys.LOCK_STARTED_MS, started)
         }
 
-        val seconds = (max(0L, now - started) / 1000L).toInt()
+        // Elapsed realtime is unaffected by edits to date/time or timezone.
+        val monotonicNow = SystemClock.elapsedRealtime()
+        val elapsedStart = preferences.getLong(EscapeKeys.MISSION_START_ELAPSED, 0L)
+        val safeStart = if (elapsedStart <= 0 || elapsedStart > monotonicNow) {
+            preferences.putLong(EscapeKeys.MISSION_START_ELAPSED, monotonicNow)
+            monotonicNow
+        } else elapsedStart
+        val seconds = (max(0L, monotonicNow - safeStart) / 1000L).toInt()
         val steps = stepTracker.stepsSinceMissionStart()
 
         preferences.putInt(EscapeKeys.WALK_SECONDS, seconds)
@@ -62,6 +75,7 @@ class RecoveryProgressTracker(
 
     fun finish() {
         preferences.putLong(EscapeKeys.LOCK_STARTED_MS, 0L)
+        preferences.putLong(EscapeKeys.MISSION_START_ELAPSED, 0L)
         preferences.putInt(EscapeKeys.WALK_SECONDS, 0)
         preferences.putInt(EscapeKeys.WALK_STEPS, 0)
         stepTracker.finishMission()

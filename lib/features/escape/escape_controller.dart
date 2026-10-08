@@ -41,6 +41,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
   String missionTitle = 'Earn Your Scroll';
   String missionInstruction = 'Complete a screen-free mission first.';
   String missionSource = 'fallback';
+  String missionProofTag = 'nature';
   bool missionGenerating = false;
   bool aiModelInstalled = false;
   bool aiEngineReady = false;
@@ -205,6 +206,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
       missionInstruction = result['missionInstruction']?.toString() ??
           'Complete a screen-free mission first.';
       missionSource = result['missionSource']?.toString() ?? 'fallback';
+      missionProofTag = result['missionProofTag']?.toString() ?? 'nature';
       missionGenerating = result['missionGenerating'] == true;
       aiModelInstalled = result['aiModelInstalled'] == true;
       aiEngineReady = result['aiEngineReady'] == true;
@@ -326,6 +328,19 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
     return lockMode == 'evening'
         ? 'Screen-free evening mission started.'
         : 'Mission started. Put the phone away and go earn your scroll.';
+  }
+
+  Future<String> submitMissionPhoto() async {
+    if (!locked || lockMode == 'evening') return 'No outdoor photo mission is waiting.';
+    try {
+      final evaluation = await _native.submitMissionPhoto();
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      await refreshStatus();
+      return evaluation['message']?.toString() ??
+          (evaluation['approved'] == true ? 'Photo approved!' : 'Try another photo.');
+    } on PlatformException catch (error) {
+      return error.message ?? 'Photo verification failed.';
+    }
   }
 
   Future<String> stopEscape() async {

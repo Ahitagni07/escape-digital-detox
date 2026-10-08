@@ -23,9 +23,11 @@ class GemmaMissionGenerator(
             Generate $safeCount DIFFERENT screen-free evening missions for ESCAPE.
             It is after 6 PM. Do NOT ask the user to go outside or walk.
             Each mission should occupy about $missionMinutes minutes.
-            Prefer: reading a physical book, family conversation, a board/card game,
-            journaling on paper, drawing, light stretching, tidying one small area,
-            or preparing for tomorrow.
+            Make each mission imaginative and practical, for instance: invent a two-line story
+            with your family; sketch an imaginary island; build a paper airplane; organise a
+            tiny book club; make a recipe from ingredients already at home; invent a card
+            game; try origami; turn a household item into a short story; write a thank-you
+            note; do a five-item memory game. No photos of family are required.
             Previous mission title: $previousTitle
 
             Return exactly $safeCount lines and nothing else.
@@ -41,12 +43,14 @@ class GemmaMissionGenerator(
             The user must earn social-media access first.
             Each mission lasts about $missionMinutes minutes and should naturally include
             at least $minimumSteps steps when walking is possible.
-            Make them playful and varied: short walk, colour hunt, tree/sky observation,
-            gentle movement, noticing sounds, exploring a familiar safe area differently,
-            or a simple outdoor family activity.
+            Make them playful and varied: find tree bark with an unusual texture;
+            compare two shades of leaves; find a safe place to see the sky;
+            look for a reflection in water; spot flowers or grass; invent a
+            micro-story inspired by a tree. Every challenge ends with a nature
+            photo submitted as lightweight offline proof. No faces, strangers or addresses.
             Previous mission title: $previousTitle
 
-            Do not require a phone, internet, photos, shopping, strangers, entering buildings,
+            Do not require internet, shopping, strangers, entering buildings,
             collecting objects, trespassing, or unsafe road crossing.
 
             Return exactly $safeCount lines and nothing else.
@@ -64,7 +68,14 @@ class GemmaMissionGenerator(
             return fallbackMissions(lockMode, missionMinutes, minimumSteps)
                 .take(safeCount)
         }
-        return parsed.take(safeCount)
+        val categories = listOf("tree", "water", "nature", "flower", "sky", "nature")
+        return parsed.take(safeCount).mapIndexed { index, mission ->
+            if (lockMode == EscapeKeys.LOCK_MODE_EVENING) mission.copy(proofTag = "none")
+            else mission.copy(
+                proofTag = categories[index % categories.size],
+                instruction = mission.instruction + " Upload a photo showing ${categories[index % categories.size]}."
+            )
+        }
     }
 
     fun fallbackMissions(
@@ -73,41 +84,43 @@ class GemmaMissionGenerator(
         minimumSteps: Int
     ): List<EscapeMission> {
         val minutes = max(1, missionMinutes)
-        val steps = max(0, minimumSteps)
 
         return if (lockMode == EscapeKeys.LOCK_MODE_EVENING) {
             listOf(
                 EscapeMission(
-                    "Read Something Real",
-                    "Put the phone away and read a physical book for $minutes minutes.",
-                    "fallback"
+                    "One-Page Adventure",
+                    "Read a physical book, then invent a different ending on paper for $minutes minutes.",
+                    "fallback",
+                    "none"
                 ),
                 EscapeMission(
-                    "Family Time",
-                    "Spend $minutes screen-free minutes talking, playing, or relaxing with family.",
-                    "fallback"
+                    "Memory Museum",
+                    "Trade three happy memories with a family member or write them down for $minutes minutes.",
+                    "fallback",
+                    "none"
                 ),
                 EscapeMission(
-                    "Paper Reset",
-                    "Use paper for $minutes minutes: journal, sketch, make tomorrow's plan, or write a short list.",
-                    "fallback"
+                    "Invent a Tiny Game",
+                    "Invent a new card or word game, or sketch an imaginary island, for $minutes minutes.",
+                    "fallback", "none"
                 )
             )
         } else {
             listOf(
                 EscapeMission(
                     "Notice Something New",
-                    "Walk for $minutes minutes and at least $steps steps. Notice three details you normally pass without seeing.",
-                    "fallback"
+                    "Find an interesting tree or natural texture. Upload a nature photo to earn social access.",
+                    "fallback",
+                    "nature"
                 ),
                 EscapeMission(
                     "Colour Hunt",
-                    "Walk for $minutes minutes and at least $steps steps. Notice five different colours around you without using your phone.",
+                    "Find contrasting natural colours. Upload a photo of leaves, grass or a tree.",
                     "fallback"
                 ),
                 EscapeMission(
                     "Sound Safari",
-                    "Walk for $minutes minutes and at least $steps steps. Pay attention to three different outdoor sounds along the way.",
+                    "Listen for three sounds outdoors. Upload a photo of sky, trees or grass.",
                     "fallback"
                 )
             )

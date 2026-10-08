@@ -4,114 +4,72 @@ import '../../escape/escape_controller.dart';
 
 class RecoveryMissionCard extends StatelessWidget {
   final EscapeController controller;
-
-  const RecoveryMissionCard({
-    super.key,
-    required this.controller,
-  });
+  const RecoveryMissionCard({super.key, required this.controller});
 
   void _message(BuildContext context, String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
-  }
-
-  String _localAiStatus(EscapeController controller) {
-    switch (controller.aiDownloadState) {
-      case 'manual-import-required':
-        return 'Local Gemma needs one-time import';
-      case 'failed':
-        return 'Local Gemma unavailable — download failed';
-      case 'paused':
-        return 'Gemma download paused';
-      case 'pending':
-      case 'downloading':
-        return 'Gemma model downloading';
-      default:
-        return 'Local Gemma not ready';
-    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
   Widget build(BuildContext context) {
     final evening = controller.lockMode == 'evening';
     final progress = controller.missionActive
-        ? (controller.walkSeconds / controller.effectiveMissionSeconds)
-            .clamp(0.0, 1.0)
+        ? (controller.walkSeconds / controller.effectiveMissionSeconds).clamp(0.0, 1.0)
         : 0.0;
-
-    final aiGenerated = controller.missionSource == 'gemma-local';
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              evening ? '🌙 SCREEN-FREE MISSION' : '🌱 EARN YOUR SCROLL',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(evening ? '🌙 CREATE AN OFFLINE EVENING' : '🌱 PHOTO CHALLENGE',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
-            Text(
-              controller.missionTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(controller.missionTitle,
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(controller.missionInstruction),
             const SizedBox(height: 10),
-            Chip(
-              avatar: Icon(
-                controller.missionGenerating
-                    ? Icons.hourglass_top
-                    : aiGenerated
-                        ? Icons.smart_toy
-                        : Icons.eco_outlined,
-                size: 18,
-              ),
-              label: Text(
-                controller.missionGenerating
-                    ? 'Gemma is preparing local missions…'
-                    : aiGenerated
-                        ? 'Generated locally by Gemma'
-                        : controller.aiModelInstalled
-                            ? 'Offline fallback mission'
-                            : _localAiStatus(controller),
-              ),
-            ),
+            Text(controller.missionSource == 'gemma-local'
+                ? '🤖 Creative mission by local Gemma'
+                : '🌱 Offline mission (Gemma unavailable or warming up)'),
             const SizedBox(height: 14),
-            if (!controller.missionActive) ...[
-              Text(
-                evening
-                    ? 'Start this screen-free activity. After ${formatClock(controller.effectiveMissionSeconds)}, social apps unlock for ${controller.demoMode ? 2 : controller.accessMinutes} minutes.'
-                    : 'Complete this mission first. Then social apps unlock for ${controller.demoMode ? 2 : controller.accessMinutes} minutes.',
-              ),
-              const SizedBox(height: 14),
+            if (!evening) ...[
+              Text('Photo target: ${controller.missionProofTag}. '
+                  'Recognition runs entirely on your device. No images are uploaded.'),
+              const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: () async {
-                  final message = await controller.startMission();
-                  if (context.mounted) _message(context, message);
+                  final result = await controller.submitMissionPhoto();
+                  _message(context, result);
                 },
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('START MISSION'),
+                icon: const Icon(Icons.photo_camera_back_outlined),
+                label: const Text('SUBMIT MISSION PHOTO'),
+              ),
+              const SizedBox(height: 6),
+              const Text('The image checker recognises nature in the picture, '
+                  'but cannot prove when or where it was taken.'),
+            ] else if (!controller.missionActive) ...[
+              Text('Do this screen-free activity for '
+                  '${formatClock(controller.effectiveMissionSeconds)}. '
+                  'Then earn ${controller.demoMode ? 2 : controller.accessMinutes} minutes of social access.'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () async {
+                  final result = await controller.startMission();
+                  _message(context, result);
+                },
+                icon: const Icon(Icons.self_improvement),
+                label: const Text('BEGIN SCREEN-FREE ACTIVITY'),
               ),
             ] else ...[
               LinearProgressIndicator(value: progress),
-              const SizedBox(height: 8),
-              Text(
-                'Mission time: ${formatClock(controller.walkSeconds)} / '
-                '${formatClock(controller.effectiveMissionSeconds)}',
-              ),
-              if (!evening) ...[
-                const SizedBox(height: 4),
-                Text(
-                  controller.stepSensorAvailable
-                      ? 'Steps: ${controller.walkSteps} / ${controller.effectiveMinSteps}'
-                      : 'No step-counter sensor detected — time-only verification.',
-                ),
-              ],
-              const SizedBox(height: 8),
-              const Text('Put the phone away. ESCAPE will unlock social apps automatically when the mission is complete.'),
+              const SizedBox(height: 10),
+              Text('${formatClock(controller.walkSeconds)} / '
+                  '${formatClock(controller.effectiveMissionSeconds)}'),
+              const SizedBox(height: 6),
+              const Text('Leave your phone aside. Access unlocks when the timer finishes.'),
             ],
           ],
         ),

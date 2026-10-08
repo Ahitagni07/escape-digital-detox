@@ -46,6 +46,11 @@ class EscapeNativeBridge {
     await _channel.invokeMethod('triggerTestLock');
   }
 
+  Future<Map<String, dynamic>> submitMissionPhoto() async {
+    return await _channel.invokeMapMethod<String, dynamic>('submitMissionPhoto') ??
+        <String, dynamic>{};
+  }
+
   Future<void> startMission() async {
     await _channel.invokeMethod('startMission');
   }

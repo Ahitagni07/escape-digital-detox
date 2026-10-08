@@ -44,8 +44,13 @@ class MissionCoordinator(
         val cached = pool.takeCached(lockMode)
         val fallback = generator
             .fallbackMissions(lockMode, missionMinutes, minimumSteps)
-            .first()
+            .let { options ->
+                val index = preferences.getInt(EscapeKeys.MISSION_VARIANT_INDEX, 0)
+                options[index.mod(options.size)]
+            }
 
+        preferences.putInt(EscapeKeys.MISSION_VARIANT_INDEX,
+            preferences.getInt(EscapeKeys.MISSION_VARIANT_INDEX, 0) + 1)
         saveMission(cached ?: fallback)
         preferences.putBoolean(EscapeKeys.MISSION_GENERATING, false)
 
@@ -109,7 +114,8 @@ class MissionCoordinator(
         source = preferences.getString(
             EscapeKeys.MISSION_SOURCE,
             "fallback"
-        )
+        ),
+        proofTag = preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature")
     )
 
     fun close() {
@@ -127,6 +133,7 @@ class MissionCoordinator(
         preferences.putString(EscapeKeys.MISSION_TITLE, mission.title)
         preferences.putString(EscapeKeys.MISSION_INSTRUCTION, mission.instruction)
         preferences.putString(EscapeKeys.MISSION_SOURCE, mission.source)
+        preferences.putString(EscapeKeys.MISSION_PROOF_TAG, mission.proofTag)
         preferences.putString(EscapeKeys.LAST_MISSION_TITLE, mission.title)
     }
 }

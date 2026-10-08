@@ -6,14 +6,12 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.widget.Toast
-import java.time.LocalTime
+import android.os.SystemClock
 import kotlin.math.max
 
 class MonitorService : Service() {
     companion object {
-        private const val EVENING_START_HOUR = 18
-        private const val NORMAL_REMINDER_INTERVAL_MS = 2 * 60 * 60 * 1000L
-        private const val DEMO_REMINDER_INTERVAL_MS = 60 * 1000L
+        private const val REMINDER_INTERVAL_MS = 60 * 60 * 1000L
         private const val NORMAL_EMERGENCY_ACCESS_SECONDS = 10 * 60
         private const val DEMO_EMERGENCY_ACCESS_SECONDS = 60
     }
@@ -26,10 +24,12 @@ class MonitorService : Service() {
     private lateinit var notifications: NotificationHelper
     private lateinit var stats: StatsManager
     private lateinit var missions: MissionCoordinator
+    private lateinit var daypart: DaypartClock
 
     private val handler = Handler(Looper.getMainLooper())
     private var tickerStarted = false
     private var lastBlockedPackage: String? = null
+    private var lastAccessNotificationText: String? = null
 
     private val tickRunnable = object : Runnable {
         override fun run() {
@@ -53,6 +53,8 @@ class MonitorService : Service() {
         notifications = NotificationHelper(this)
         stats = StatsManager(preferences)
         missions = MissionCoordinator(this, preferences)
+        daypart = DaypartClock(this, preferences)
+        daypart.nowMillis() // anchor the clock before showing any missions
 
         notifications.createChannel()
         startForeground(
@@ -91,10 +93,18 @@ class MonitorService : Service() {
         when (intent?.action) {
             EscapeKeys.ACTION_TEST_LOCK -> {
                 preferences.putLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
+                preferences.putLong(EscapeKeys.ACCESS_UNTIL_ELAPSED, 0L)
                 ensureMissionLock(sendReminder = true, forceNewMission = true)
             }
 
             EscapeKeys.ACTION_START_MISSION -> startCurrentMission()
+            EscapeKeys.ACTION_PHOTO_APPROVED -> {
+                // Non-exported service; photo checker is the only in-app action sending this.
+                if (preferences.getBoolean(EscapeKeys.LOCKED, false) &&
+                    currentLockMode() == EscapeKeys.LOCK_MODE_WALK) {
+                    grantAccess(preferences.getInt(EscapeKeys.ACCESS_SECONDS_TARGET, 2700), false)
+                }
+            }
             EscapeKeys.ACTION_EMERGENCY_UNLOCK -> emergencyUnlock()
         }
 
@@ -133,13 +143,16 @@ class MonitorService : Service() {
             }
             overlay.hide()
             lastBlockedPackage = null
-            notifications.update(
-                "Social access earned — ${formatMinutes(accessRemainingSeconds())} remaining"
-            )
+            val text = "Social access earned — ${formatMinutes(accessRemainingSeconds())} remaining"
+            if (text != lastAccessNotificationText) {
+                notifications.update(text)
+                lastAccessNotificationText = text
+            }
             return
         }
 
         // The reward window has expired. Social apps now require a new mission.
+        lastAccessNotificationText = null
         ensureMissionLock(sendReminder = false)
 
         var missionActive = preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)
@@ -164,7 +177,7 @@ class MonitorService : Service() {
         maybeSendMissionReminder()
         missionActive = preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)
 
-        if (missionActive) {
+        if (missionActive && lockMode == EscapeKeys.LOCK_MODE_EVENING) {
             val missionTargetSeconds = preferences.getInt(
                 EscapeKeys.WALK_SECONDS_TARGET,
                 600
@@ -181,7 +194,7 @@ class MonitorService : Service() {
                 requireSteps = lockMode != EscapeKeys.LOCK_MODE_EVENING
             )
 
-            if (progress.timeDone && progress.stepsDone) {
+            if (progress.timeDone) {
                 completeMission(progress)
                 return
             }
@@ -215,6 +228,7 @@ class MonitorService : Service() {
         preferences.putBoolean(EscapeKeys.LOCKED, true)
         preferences.putBoolean(EscapeKeys.MISSION_ACTIVE, false)
         preferences.putLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
+        preferences.putLong(EscapeKeys.ACCESS_UNTIL_ELAPSED, 0L)
         preferences.putLong(EscapeKeys.LOCK_STARTED_MS, 0L)
         preferences.putInt(EscapeKeys.WALK_SECONDS, 0)
         preferences.putInt(EscapeKeys.WALK_STEPS, 0)
@@ -242,6 +256,7 @@ class MonitorService : Service() {
 
     private fun startCurrentMission() {
         if (!preferences.getBoolean(EscapeKeys.LOCKED, false)) return
+        if (currentLockMode() != EscapeKeys.LOCK_MODE_EVENING) return // Daytime: photo proof only
         if (preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)) return
 
         preferences.putBoolean(EscapeKeys.MISSION_ACTIVE, true)
@@ -279,7 +294,11 @@ class MonitorService : Service() {
 
     private fun grantAccess(seconds: Int, emergency: Boolean) {
         val safeSeconds = max(60, seconds)
-        val now = System.currentTimeMillis()
+        val now = daypart.nowMillis()
+        preferences.putLong(EscapeKeys.ACCESS_ISSUED_ELAPSED, SystemClock.elapsedRealtime())
+        preferences.putInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, daypart.bootCount())
+        preferences.putLong(EscapeKeys.ACCESS_UNTIL_ELAPSED,
+            SystemClock.elapsedRealtime() + safeSeconds * 1000L)
 
         preferences.putLong(
             EscapeKeys.ACCESS_UNTIL_MS,
@@ -358,15 +377,26 @@ class MonitorService : Service() {
     private fun maybeSendMissionReminder() {
         if (preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)) return
 
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         val next = preferences.getLong(EscapeKeys.NEXT_MISSION_REMINDER_MS, 0L)
+        if (next > now + REMINDER_INTERVAL_MS) {
+            scheduleNextReminder() // elapsedRealtime counter reset by reboot
+            return
+        }
         if (next <= 0L || now >= next) {
+            // Different creative idea every hour, even if the previous was not done.
+            missions.prepareMission(currentLockMode())
             sendCurrentMissionReminder()
             scheduleNextReminder()
         }
     }
 
     private fun sendCurrentMissionReminder() {
+        val now = SystemClock.elapsedRealtime()
+        val last = preferences.getLong(EscapeKeys.LAST_REMINDER_ELAPSED, -1L)
+        // Prevent duplicate notifications when model generation finishes.
+        if (last >= 0 && now >= last && now - last < 55 * 60 * 1000L) return
+        preferences.putLong(EscapeKeys.LAST_REMINDER_ELAPSED, now)
         notifications.showMissionReminder(
             mission = missions.currentMission(),
             evening = currentLockMode() == EscapeKeys.LOCK_MODE_EVENING
@@ -374,18 +404,26 @@ class MonitorService : Service() {
     }
 
     private fun scheduleNextReminder() {
-        val demo = preferences.getBoolean(EscapeKeys.DEMO_MODE, false)
-        val interval = if (demo) DEMO_REMINDER_INTERVAL_MS else NORMAL_REMINDER_INTERVAL_MS
+        val interval = REMINDER_INTERVAL_MS
         preferences.putLong(
             EscapeKeys.NEXT_MISSION_REMINDER_MS,
-            System.currentTimeMillis() + interval
+            SystemClock.elapsedRealtime() + interval
         )
     }
 
     private fun accessRemainingSeconds(): Int {
+        val monotonicUntil = preferences.getLong(EscapeKeys.ACCESS_UNTIL_ELAPSED, 0L)
+        val now = SystemClock.elapsedRealtime()
+        val issued = preferences.getLong(EscapeKeys.ACCESS_ISSUED_ELAPSED, -1L)
+        val issuedBoot = preferences.getInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, -1)
+        if (issued >= 0L && now >= issued &&
+            (issuedBoot < 0 || issuedBoot == daypart.bootCount())) {
+            return max(0L, (monotonicUntil - now + 999L) / 1000L).toInt()
+        }
+        // After reboot, use the anchored home clock as a best-effort fallback.
         val until = preferences.getLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
         if (until <= 0L) return 0
-        return max(0L, (until - System.currentTimeMillis() + 999L) / 1000L).toInt()
+        return max(0L, (until - daypart.nowMillis() + 999L) / 1000L).toInt()
     }
 
     private fun isAccessActive(): Boolean = accessRemainingSeconds() > 0
@@ -394,7 +432,7 @@ class MonitorService : Service() {
         preferences.getString(EscapeKeys.LOCK_MODE, EscapeKeys.LOCK_MODE_WALK)
 
     private fun modeForCurrentTime(): String =
-        if (LocalTime.now().hour >= EVENING_START_HOUR) {
+        if (daypart.isEvening()) {
             EscapeKeys.LOCK_MODE_EVENING
         } else {
             EscapeKeys.LOCK_MODE_WALK

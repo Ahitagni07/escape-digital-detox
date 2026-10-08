@@ -20,6 +20,7 @@ class EscapeMethodChannelHandler(
         private const val CHANNEL_NAME = "escape/native"
         private const val REQUEST_CODE = 4107
         private const val MODEL_PICK_REQUEST_CODE = 4108
+        private const val PHOTO_PICK_REQUEST_CODE = 4109
     }
 
     private val permissions = PermissionHelper(activity)
@@ -30,6 +31,7 @@ class EscapeMethodChannelHandler(
     private val autoDownloader = GemmaAutoDownloader(activity, preferences, modelManager)
 
     private var pendingModelImportResult: MethodChannel.Result? = null
+    private var pendingPhotoResult: MethodChannel.Result? = null
 
     fun register(binaryMessenger: BinaryMessenger) {
         MethodChannel(binaryMessenger, CHANNEL_NAME)
@@ -125,6 +127,28 @@ class EscapeMethodChannelHandler(
                         result.success(true)
                     }
 
+                    "submitMissionPhoto" -> {
+                        if (!preferences.getBoolean(EscapeKeys.RUNNING, false) ||
+                            !preferences.getBoolean(EscapeKeys.LOCKED, false) ||
+                            preferences.getString(EscapeKeys.LOCK_MODE, "walk") != EscapeKeys.LOCK_MODE_WALK) {
+                            result.success(mapOf("approved" to false,
+                                "message" to "No outdoor mission is waiting."))
+                        } else if (pendingPhotoResult != null) {
+                            result.error("photo_busy", "Finish choosing the previous photo first.", null)
+                        } else {
+                            pendingPhotoResult = result
+                            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                type = "image/*"
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            activity.startActivityForResult(
+                                Intent.createChooser(intent, "Select a nature photo"),
+                                PHOTO_PICK_REQUEST_CODE
+                            )
+                        }
+                    }
+
                     "emergencyUnlock" -> {
                         sendMonitorAction(EscapeKeys.ACTION_EMERGENCY_UNLOCK)
                         result.success(true)
@@ -212,6 +236,34 @@ class EscapeMethodChannelHandler(
         resultCode: Int,
         data: Intent?
     ): Boolean {
+        if (requestCode == PHOTO_PICK_REQUEST_CODE) {
+            val pending = pendingPhotoResult ?: return true
+            pendingPhotoResult = null
+            val uri = if (resultCode == Activity.RESULT_OK) data?.data else null
+            if (uri == null) {
+                pending.success(mapOf("approved" to false, "message" to "Photo selection cancelled."))
+                return true
+            }
+            val tag = preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature")
+            PhotoProofVerifier(activity).verify(uri, tag) { evaluation ->
+                activity.runOnUiThread {
+                    val stillOutdoor = preferences.getBoolean(EscapeKeys.LOCKED, false) &&
+                        preferences.getBoolean(EscapeKeys.RUNNING, false) &&
+                        preferences.getString(EscapeKeys.LOCK_MODE, "walk") == EscapeKeys.LOCK_MODE_WALK &&
+                        preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature") == tag
+                    if (evaluation["approved"] == true && stillOutdoor) {
+                        sendMonitorAction(EscapeKeys.ACTION_PHOTO_APPROVED)
+                        pending.success(evaluation)
+                    } else {
+                        pending.success(if (stillOutdoor) evaluation else mapOf(
+                            "approved" to false,
+                            "message" to "Mission changed while checking photo. Please try the new mission."
+                        ))
+                    }
+                }
+            }
+            return true
+        }
         if (requestCode != MODEL_PICK_REQUEST_CODE) return false
 
         val pending = pendingModelImportResult ?: return true
@@ -388,6 +440,7 @@ class EscapeMethodChannelHandler(
                 EscapeKeys.MISSION_SOURCE,
                 "fallback"
             ),
+            "missionProofTag" to preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature"),
             "missionGenerating" to preferences.getBoolean(
                 EscapeKeys.MISSION_GENERATING,
                 false
@@ -403,9 +456,17 @@ class EscapeMethodChannelHandler(
     }
 
     private fun accessRemainingSeconds(): Int {
-        val until = preferences.getLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
-        if (until <= 0L) return 0
-        val remaining = (until - System.currentTimeMillis() + 999L) / 1000L
-        return max(0L, remaining).toInt()
+        val until = preferences.getLong(EscapeKeys.ACCESS_UNTIL_ELAPSED, 0L)
+        val now = android.os.SystemClock.elapsedRealtime()
+        val issued = preferences.getLong(EscapeKeys.ACCESS_ISSUED_ELAPSED, -1L)
+        val clock = DaypartClock(activity, preferences)
+        val issuedBoot = preferences.getInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, -1)
+        if (issued >= 0L && now >= issued &&
+            (issuedBoot < 0 || issuedBoot == clock.bootCount())) {
+            return max(0L, (until - now + 999L) / 1000L).toInt()
+        }
+        val fallback = preferences.getLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
+        if (fallback <= 0L) return 0
+        return max(0L, (fallback - DaypartClock(activity, preferences).nowMillis() + 999L) / 1000L).toInt()
     }
 }

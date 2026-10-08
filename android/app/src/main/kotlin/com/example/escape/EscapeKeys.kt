@@ -54,6 +54,16 @@ object EscapeKeys {
     const val MISSION_INSTRUCTION = "mission_instruction"
     const val MISSION_SOURCE = "mission_source"
     const val MISSION_GENERATING = "mission_generating"
+    const val MISSION_PROOF_TAG = "mission_proof_tag"
+    const val MISSION_VARIANT_INDEX = "mission_variant_index"
+    const val ACCESS_UNTIL_ELAPSED = "access_until_elapsed"
+    const val ACCESS_ISSUED_ELAPSED = "access_issued_elapsed"
+    const val MISSION_START_ELAPSED = "mission_start_elapsed"
+    const val LAST_REMINDER_ELAPSED = "last_reminder_elapsed"
+    const val CLOCK_ANCHOR_WALL = "clock_anchor_wall"
+    const val CLOCK_ANCHOR_ELAPSED = "clock_anchor_elapsed"
+    const val CLOCK_BOOT_COUNT = "clock_boot_count"
+    const val ACCESS_ISSUED_BOOT_COUNT = "access_issued_boot_count"
     const val LAST_MISSION_TITLE = "last_mission_title"
 
     // Cached AI missions. They are generated locally in batches so Gemma does not
@@ -63,5 +73,6 @@ object EscapeKeys {
 
     const val ACTION_TEST_LOCK = "com.example.escape.TEST_LOCK"
     const val ACTION_START_MISSION = "com.example.escape.START_MISSION"
+    const val ACTION_PHOTO_APPROVED = "com.example.escape.PHOTO_APPROVED"
     const val ACTION_EMERGENCY_UNLOCK = "com.example.escape.EMERGENCY_UNLOCK"
 }

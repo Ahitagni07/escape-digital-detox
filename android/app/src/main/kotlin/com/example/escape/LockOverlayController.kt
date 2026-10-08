@@ -57,7 +57,7 @@ class LockOverlayController(
             overlayProgress?.text = buildString {
                 append("🔒 SOCIAL ACCESS LOCKED\n\n")
                 append("Complete this mission first to earn your social-media window.\n")
-                append("Open ESCAPE and tap Start Mission.")
+                append("Open ESCAPE to upload nature photo (daytime), or start an indoor activity (evening).")
             }
             actionButton?.text = "OPEN ESCAPE"
             emergencyHint?.text = "\nThe same mission stays active; ESCAPE will not nag you with a new one every time."

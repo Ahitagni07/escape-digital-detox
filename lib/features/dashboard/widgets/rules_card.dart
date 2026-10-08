@@ -3,121 +3,55 @@ import '../../escape/escape_controller.dart';
 
 class RulesCard extends StatelessWidget {
   final EscapeController controller;
-
-  const RulesCard({
-    super.key,
-    required this.controller,
-  });
-
-  int _safeValue(int current, List<int> allowed, int fallback) {
-    return allowed.contains(current) ? current : fallback;
-  }
+  const RulesCard({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    const missionDurations = <int>[5, 10, 15, 20, 30];
-    const stepTargets = <int>[300, 600, 800, 1000, 1500];
-    const accessDurations = <int>[15, 30, 45, 60, 90];
-
-    final safeWalkMinutes =
-        _safeValue(controller.walkMinutes, missionDurations, 10);
-    final safeMinSteps =
-        _safeValue(controller.minSteps, stepTargets, 600);
-    final safeAccessMinutes =
-        _safeValue(controller.accessMinutes, accessDurations, 45);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Rules', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: controller.demoMode,
-                  title: const Text('Demo mode'),
-                  subtitle: const Text(
-                    '1 min mission → 2 min social access; reminders every minute',
-                  ),
-                  onChanged: controller.serviceRunning
-                      ? null
-                      : controller.setDemoMode,
-                ),
-                const Divider(),
-                DropdownButtonFormField<int>(
-                  value: safeWalkMinutes,
-                  decoration: const InputDecoration(
-                    labelText: 'Mission duration',
-                  ),
-                  items: missionDurations
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text('$value minutes'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: controller.serviceRunning || controller.demoMode
-                      ? null
-                      : (value) {
-                          if (value != null) controller.setWalkMinutes(value);
-                        },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: safeMinSteps,
-                  decoration: const InputDecoration(
-                    labelText: 'Outdoor minimum steps',
-                  ),
-                  items: stepTargets
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text('$value steps'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: controller.serviceRunning || controller.demoMode
-                      ? null
-                      : (value) {
-                          if (value != null) controller.setMinSteps(value);
-                        },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: safeAccessMinutes,
-                  decoration: const InputDecoration(
-                    labelText: 'Social access earned per mission',
-                  ),
-                  items: accessDurations
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text('$value minutes'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: controller.serviceRunning || controller.demoMode
-                      ? null
-                      : (value) {
-                          if (value != null) controller.setAccessMinutes(value);
-                        },
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Before 18:00, missions are outdoor/fresh-air activities. '
-                  'After 18:00, Gemma switches to indoor screen-free ideas '
-                  'such as reading or family time.',
-                ),
-              ],
+    const indoorMinutes = <int>[5, 10, 15, 20, 30];
+    const accessOptions = <int>[15, 30, 45, 60, 90];
+    final indoor = indoorMinutes.contains(controller.walkMinutes)
+        ? controller.walkMinutes : 10;
+    final access = accessOptions.contains(controller.accessMinutes)
+        ? controller.accessMinutes : 45;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Your screen-time agreement',
+                style: Theme.of(context).textTheme.titleMedium),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: controller.demoMode,
+              title: const Text('Demo mode'),
+              subtitle: const Text('1-minute indoor timer and 2-minute reward. Notifications still hourly.'),
+              onChanged: controller.serviceRunning ? null : controller.setDemoMode,
             ),
-          ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              value: indoor,
+              decoration: const InputDecoration(labelText: 'Evening activity duration'),
+              items: indoorMinutes.map((x) => DropdownMenuItem(
+                value: x, child: Text('$x minutes'))).toList(),
+              onChanged: controller.serviceRunning || controller.demoMode
+                  ? null : (v) { if (v != null) controller.setWalkMinutes(v); },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              value: access,
+              decoration: const InputDecoration(labelText: 'Social access earned per mission'),
+              items: accessOptions.map((x) => DropdownMenuItem(
+                value: x, child: Text('$x minutes'))).toList(),
+              onChanged: controller.serviceRunning || controller.demoMode
+                  ? null : (v) { if (v != null) controller.setAccessMinutes(v); },
+            ),
+            const SizedBox(height: 10),
+            const Text('A new creative mission is suggested every hour while social access is locked. '
+                'Day: upload a nature photo. Evening: screen-free indoor activity.'),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
