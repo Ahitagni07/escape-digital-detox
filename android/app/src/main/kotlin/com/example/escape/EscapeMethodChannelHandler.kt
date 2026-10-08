@@ -130,9 +130,14 @@ class EscapeMethodChannelHandler(
                     "submitMissionPhoto" -> {
                         if (!preferences.getBoolean(EscapeKeys.RUNNING, false) ||
                             !preferences.getBoolean(EscapeKeys.LOCKED, false) ||
-                            preferences.getString(EscapeKeys.LOCK_MODE, "walk") != EscapeKeys.LOCK_MODE_WALK) {
-                            result.success(mapOf("approved" to false,
-                                "message" to "No outdoor mission is waiting."))
+                            preferences.getString(EscapeKeys.LOCK_MODE, "walk") != EscapeKeys.LOCK_MODE_WALK
+                        ) {
+                            result.success(
+                                mapOf(
+                                    "approved" to false,
+                                    "message" to "No outdoor mission is waiting."
+                                )
+                            )
                         } else if (pendingPhotoResult != null) {
                             result.error("photo_busy", "Finish choosing the previous photo first.", null)
                         } else {
@@ -248,17 +253,19 @@ class EscapeMethodChannelHandler(
             PhotoProofVerifier(activity).verify(uri, tag) { evaluation ->
                 activity.runOnUiThread {
                     val stillOutdoor = preferences.getBoolean(EscapeKeys.LOCKED, false) &&
-                        preferences.getBoolean(EscapeKeys.RUNNING, false) &&
-                        preferences.getString(EscapeKeys.LOCK_MODE, "walk") == EscapeKeys.LOCK_MODE_WALK &&
-                        preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature") == tag
+                            preferences.getBoolean(EscapeKeys.RUNNING, false) &&
+                            preferences.getString(EscapeKeys.LOCK_MODE, "walk") == EscapeKeys.LOCK_MODE_WALK &&
+                            preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature") == tag
                     if (evaluation["approved"] == true && stillOutdoor) {
                         sendMonitorAction(EscapeKeys.ACTION_PHOTO_APPROVED)
                         pending.success(evaluation)
                     } else {
-                        pending.success(if (stillOutdoor) evaluation else mapOf(
-                            "approved" to false,
-                            "message" to "Mission changed while checking photo. Please try the new mission."
-                        ))
+                        pending.success(
+                            if (stillOutdoor) evaluation else mapOf(
+                                "approved" to false,
+                                "message" to "Mission changed while checking photo. Please try the new mission."
+                            )
+                        )
                     }
                 }
             }
@@ -462,7 +469,8 @@ class EscapeMethodChannelHandler(
         val clock = DaypartClock(activity, preferences)
         val issuedBoot = preferences.getInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, -1)
         if (issued >= 0L && now >= issued &&
-            (issuedBoot < 0 || issuedBoot == clock.bootCount())) {
+            (issuedBoot < 0 || issuedBoot == clock.bootCount())
+        ) {
             return max(0L, (until - now + 999L) / 1000L).toInt()
         }
         val fallback = preferences.getLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
