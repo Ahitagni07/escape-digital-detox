@@ -389,7 +389,7 @@ class MonitorService : Service() {
         missions.reviewExtractedEvidence(mission, evidence)
 
     private fun grantAccess(seconds: Int, emergency: Boolean) {
-        val safeSeconds = max(60, seconds)
+        val safeSeconds = RewardRules.safeAccessSeconds(seconds)
         val now = daypart.nowMillis()
         preferences.putLong(EscapeKeys.ACCESS_ISSUED_ELAPSED, SystemClock.elapsedRealtime())
         preferences.putInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, daypart.bootCount())
@@ -412,7 +412,7 @@ class MonitorService : Service() {
         overlay.hide()
         notifications.cancelMissionReminder()
 
-        val minutes = max(1, (safeSeconds + 59) / 60)
+        val minutes = RewardRules.displayMinutes(safeSeconds)
         notifications.showAccessGranted(minutes)
         notifications.update("Social access earned for $minutes minutes")
 

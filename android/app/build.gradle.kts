@@ -102,4 +102,6 @@ dependencies {
     // Small bundled offline classifier: no network on first photo.
     implementation("com.google.mlkit:image-labeling:17.0.9")
     implementation("com.google.mlkit:text-recognition:16.0.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

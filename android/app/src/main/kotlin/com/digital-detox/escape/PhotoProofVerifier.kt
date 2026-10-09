@@ -17,16 +17,6 @@ data class ProofEvidence(
 )
 
 class PhotoProofVerifier(private val context: Context) {
-    private val expectedLabels = mapOf(
-        "grass" to listOf("grass", "lawn", "meadow", "vegetation", "field", "plant", "greenery"),
-        "tree" to listOf("tree", "plant", "leaf", "forest", "wood", "branch"),
-        "water" to listOf("water", "lake", "river", "canal", "pond", "sea", "reflection"),
-        "sky" to listOf("sky", "cloud", "sunset", "sunrise"),
-        "flower" to listOf("flower", "plant", "petal", "garden"),
-        "nature" to listOf("tree", "plant", "grass", "leaf", "flower", "sky",
-            "cloud", "landscape", "forest", "garden", "river", "water", "outdoor")
-    )
-
     fun verify(uri: Uri, tag: String, code: String,
                finished: (ProofEvidence) -> Unit) {
         val image = try {
@@ -48,20 +38,17 @@ class PhotoProofVerifier(private val context: Context) {
         recognizer.process(image)
             .addOnSuccessListener { result ->
                 val text = result.text.trim()
-                val normalized = text.uppercase().replace(Regex("[^A-Z0-9]+"), " ").trim()
-                val codeWords = code.uppercase().split(" ").filter { it.isNotBlank() }
-                val hasCode = codeWords.size == 2 &&
-                    codeWords.all { Regex("\\b" + Regex.escape(it) + "\\b").containsMatchIn(normalized) }
-                val words = normalized.split(Regex("\\s+")).filter { it.length >= 2 }
-                val enoughWriting = words.size >= 20
+                val check = MissionProofRules.checkWrittenProof(text, code)
                 finished(
                     ProofEvidence(
-                        passed = hasCode && enoughWriting,
-                        message = if (hasCode && enoughWriting)
-                            "Offline text check passed."
-                        else if (!hasCode)
-                            "Please write the displayed proof words clearly on the page."
-                        else "Please write at least 20 readable words, then take a clearer photo.",
+                        passed = check.passed,
+                        message = when {
+                            check.passed -> "Offline text check passed."
+                            !check.hasCode ->
+                                "Please write the displayed proof words clearly on the page."
+                            else ->
+                                "Please write at least 20 readable words, then take a clearer photo."
+                        },
                         extractedText = text
                     )
                 )
@@ -74,8 +61,7 @@ class PhotoProofVerifier(private val context: Context) {
 
     private fun verifyNatureProof(image: InputImage, tag: String,
                                    finished: (ProofEvidence) -> Unit) {
-        val expected = expectedLabels[tag]
-        if (expected == null) {
+        if (!MissionProofRules.isSupportedNatureSubject(tag)) {
             finished(ProofEvidence(false, "Unrecognised mission proof type."))
             return
         }
@@ -85,9 +71,7 @@ class PhotoProofVerifier(private val context: Context) {
         labeler.process(image)
             .addOnSuccessListener { results ->
                 val labels = results.map { it.text.lowercase() }
-                val match = labels.any { label ->
-                    expected.any { keyword -> label.contains(keyword) }
-                }
+                val match = MissionProofRules.matchesNatureSubject(tag, labels) == true
                 finished(ProofEvidence(
                     match,
                     if (match) "Nature photo matched the mission."
