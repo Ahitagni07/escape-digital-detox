@@ -44,7 +44,7 @@ class EscapePreferences(
         "packages" to selectedPackages().toList(),
         "walkMinutes" to getInt(EscapeKeys.WALK_MINUTES, 10),
         "minSteps" to getInt(EscapeKeys.MIN_STEPS, 600),
-        "accessMinutes" to getInt(EscapeKeys.ACCESS_MINUTES, 45),
+        "accessMinutes" to getInt(EscapeKeys.ACCESS_MINUTES, 30),
         "demoMode" to getBoolean(EscapeKeys.DEMO_MODE, false)
     )
 
@@ -85,6 +85,8 @@ class EscapePreferences(
             .putBoolean(EscapeKeys.RUNNING, false)
             .putBoolean(EscapeKeys.LOCKED, false)
             .putBoolean(EscapeKeys.MISSION_ACTIVE, false)
+            .putString(EscapeKeys.MISSION_ACTIVITY, "")
+            .putInt(EscapeKeys.RIDE_METERS, 0)
             .putLong(EscapeKeys.LOCK_STARTED_MS, 0L)
             .putLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)
             .putLong(EscapeKeys.NEXT_MISSION_REMINDER_MS, 0L)

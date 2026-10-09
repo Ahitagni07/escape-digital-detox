@@ -25,6 +25,7 @@ class LockOverlayController(
     private var missionSourceView: TextView? = null
     private var overlayProgress: TextView? = null
     private var actionButton: Button? = null
+    private var exitButton: Button? = null
     private var emergencyHint: TextView? = null
 
     fun show(
@@ -38,7 +39,8 @@ class LockOverlayController(
         missionTitle: String,
         missionInstruction: String,
         missionSource: String,
-        missionGenerating: Boolean
+        missionGenerating: Boolean,
+        missionProofCode: String
     ) {
         if (!Settings.canDrawOverlays(context)) return
         if (overlayView == null) createOverlay()
@@ -53,34 +55,22 @@ class LockOverlayController(
             else -> "🌱 Built-in offline mission"
         }
 
-        if (!missionActive) {
-            overlayProgress?.text = buildString {
-                append("🔒 SOCIAL ACCESS LOCKED\n\n")
-                append("Complete this mission first to earn your social-media window.\n")
-                append("Open ESCAPE to upload nature photo (daytime), or start an indoor activity (evening).")
+        overlayProgress?.text = buildString {
+            append("🔒 SOCIAL ACCESS LOCKED\n\n")
+            if (evening) {
+                append("Create a nature-themed note on paper for the required time.\n")
+                append("Include at least 20 words.\n")
+                append("Add these proof words clearly: ")
+                append(missionProofCode.ifBlank { "See ESCAPE" })
+                append("\nThen photograph your paper in ESCAPE.")
+            } else {
+                append("Step 1: take a real walk (or an opt-in weekend bike ride).\n")
+                append("Step 2: find the requested nature subject.\n")
+                append("Step 3: capture a NEW camera photo in ESCAPE.")
             }
-            actionButton?.text = "OPEN ESCAPE"
-            emergencyHint?.text = "\nThe same mission stays active; ESCAPE will not nag you with a new one every time."
-        } else {
-            val remaining = max(0, missionTargetSeconds - missionSeconds)
-
-            overlayProgress?.text = buildString {
-                append(if (evening) "🌙 SCREEN-FREE TIME\n" else "🌱 MISSION IN PROGRESS\n")
-                append(formatTime(missionSeconds))
-                append(" / ")
-                append(formatTime(missionTargetSeconds))
-                append("\n")
-
-                if (!evening && stepSensorAvailable) {
-                    append("👟 $steps / $minSteps steps\n")
-                }
-
-                append("\nRemaining: ")
-                append(formatTime(remaining))
-            }
-            actionButton?.text = "PUT PHONE AWAY"
-            emergencyHint?.text = "\nUrgent? Open ESCAPE and use Emergency Unlock."
         }
+        actionButton?.text = "OPEN ESCAPE • START QUEST"
+        emergencyHint?.text = "Need to leave? Tap GO HOME below. No need to complete a mission just to exit an app."
     }
 
     fun hide() {
@@ -96,6 +86,7 @@ class LockOverlayController(
         missionSourceView = null
         overlayProgress = null
         actionButton = null
+        exitButton = null
         emergencyHint = null
     }
 
@@ -113,7 +104,7 @@ class LockOverlayController(
             )
             setBackgroundColor(Color.rgb(19, 31, 21))
             isClickable = true
-            isFocusable = true
+            isFocusable = false
         }
 
         val leaf = TextView(context).apply {
@@ -138,7 +129,7 @@ class LockOverlayController(
         }
 
         missionInstructionView = TextView(context).apply {
-            text = "Complete a screen-free mission first."
+            text = "Complete a concrete offline challenge, then submit photo proof."
             textSize = 17f
             setTextColor(Color.rgb(222, 235, 224))
             gravity = Gravity.CENTER
@@ -171,6 +162,18 @@ class LockOverlayController(
             }
         }
 
+        exitButton = Button(context).apply {
+            text = "← GO HOME / LEAVE APP"
+            textSize = 14f
+            setOnClickListener {
+                val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(homeIntent)
+            }
+        }
+
         emergencyHint = TextView(context).apply {
             text = ""
             textSize = 12f
@@ -185,13 +188,15 @@ class LockOverlayController(
         root.addView(missionSourceView)
         root.addView(overlayProgress)
         root.addView(actionButton)
+        root.addView(exitButton)
         root.addView(emergencyHint)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.CENTER

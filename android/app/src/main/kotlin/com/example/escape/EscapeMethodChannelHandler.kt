@@ -1,10 +1,15 @@
 package com.example.escape
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.MediaStore
+import android.content.ClipData
+import androidx.core.content.FileProvider
+import java.io.File
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.Settings
@@ -21,6 +26,8 @@ class EscapeMethodChannelHandler(
         private const val REQUEST_CODE = 4107
         private const val MODEL_PICK_REQUEST_CODE = 4108
         private const val PHOTO_PICK_REQUEST_CODE = 4109
+        private const val WEEKEND_LOCATION_REQUEST = 4110
+        private const val RIDE_LOCATION_REQUEST = 4111
     }
 
     private val permissions = PermissionHelper(activity)
@@ -32,11 +39,49 @@ class EscapeMethodChannelHandler(
 
     private var pendingModelImportResult: MethodChannel.Result? = null
     private var pendingPhotoResult: MethodChannel.Result? = null
+    private var pendingPhotoUri: Uri? = null
+    private var pendingPhotoFile: File? = null
+    private var pendingRideResult: MethodChannel.Result? = null
+    private var pendingWeekendResult: MethodChannel.Result? = null
+    private val weekendExplorer = WeekendExplorer(activity)
 
     fun register(binaryMessenger: BinaryMessenger) {
         MethodChannel(binaryMessenger, CHANNEL_NAME)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "getSavedWeekendPlaces" -> result.success(weekendExplorer.savedPlaces())
+
+                    "getWeekendPlaces" -> {
+                        if (pendingWeekendResult != null) {
+                            result.error("busy", "Another weekend search is running", null)
+                        } else {
+                            pendingWeekendResult = result
+                            val refresh = call.argument<Boolean>("refresh") == true
+                            if (weekendExplorer.hasLocationPermission()) {
+                                loadWeekendPlaces(refresh)
+                            } else {
+                                pendingWeekendRefresh = refresh
+                                activity.requestPermissions(arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                ), WEEKEND_LOCATION_REQUEST)
+                            }
+                        }
+                    }
+
+                    "openWeekendCyclingDirections" -> {
+                        val lat = call.argument<Double>("latitude")
+                        val lon = call.argument<Double>("longitude")
+                        if (lat == null || lon == null) {
+                            result.error("bad_coordinates", "No mapped coordinates", null)
+                        } else try {
+                            weekendExplorer.openBicycleDirections(lat, lon)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("map_failed", e.message, null)
+                        }
+                    }
+
                     "getPermissionStatus" -> result.success(
                         mapOf(
                             "usage" to permissions.hasUsageAccess(),
@@ -123,34 +168,65 @@ class EscapeMethodChannelHandler(
                     }
 
                     "startMission" -> {
-                        sendMonitorAction(EscapeKeys.ACTION_START_MISSION)
-                        result.success(true)
+                        if (MonitorService.activeInstance == null) {
+                            result.error("monitor_not_running", "Start ESCAPE first", null)
+                        } else {
+                            sendMonitorAction(EscapeKeys.ACTION_START_MISSION)
+                            result.success(true)
+                        }
+                    }
+                    "startCycleQuest" -> {
+                        if (preferences.getString(EscapeKeys.LOCK_MODE, "") != EscapeKeys.LOCK_MODE_WEEKEND) {
+                            result.error("wrong_mode", "Cycling quest is available during weekend daylight only.", null)
+                        } else if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                            PackageManager.PERMISSION_GRANTED) {
+                            sendMonitorAction(EscapeKeys.ACTION_START_RIDE)
+                            result.success(true)
+                        } else if (pendingRideResult != null) {
+                            result.error("busy", "Another permission request is open", null)
+                        } else {
+                            pendingRideResult = result
+                            activity.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION), RIDE_LOCATION_REQUEST)
+                        }
+                    }
+                    "speakMission" -> {
+                        result.success(MonitorService.activeInstance?.readMissionAloud() == true)
                     }
 
                     "submitMissionPhoto" -> {
                         if (!preferences.getBoolean(EscapeKeys.RUNNING, false) ||
-                            !preferences.getBoolean(EscapeKeys.LOCKED, false) ||
-                            preferences.getString(EscapeKeys.LOCK_MODE, "walk") != EscapeKeys.LOCK_MODE_WALK
-                        ) {
-                            result.success(
-                                mapOf(
-                                    "approved" to false,
-                                    "message" to "No outdoor mission is waiting."
-                                )
-                            )
+                            !preferences.getBoolean(EscapeKeys.LOCKED, false)) {
+                            result.success(mapOf("approved" to false,
+                                "message" to "No mission is waiting."))
                         } else if (pendingPhotoResult != null) {
-                            result.error("photo_busy", "Finish choosing the previous photo first.", null)
+                            result.error("photo_busy", "A camera capture is already open.", null)
+                        } else if (MonitorService.activeInstance?.isProofReady() != true) {
+                            result.success(mapOf("approved" to false,
+                                "message" to "Finish your movement/time target before taking the proof photo."))
                         } else {
-                            pendingPhotoResult = result
-                            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                                type = "image/*"
-                                addCategory(Intent.CATEGORY_OPENABLE)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            // Fresh in-app camera capture only; no gallery/reused photos.
+                            try {
+                                val folder = File(activity.cacheDir, "proofs").apply { mkdirs() }
+                                val file = File.createTempFile("quest_", ".jpg", folder)
+                                val uri = FileProvider.getUriForFile(activity,
+                                    "${activity.packageName}.fileprovider", file)
+                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                                    putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                                    clipData = ClipData.newUri(activity.contentResolver, "quest", uri)
+                                    addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                pendingPhotoUri = uri
+                                pendingPhotoFile = file
+                                pendingPhotoResult = result
+                                activity.startActivityForResult(intent, PHOTO_PICK_REQUEST_CODE)
+                            } catch (e: Exception) {
+                                pendingPhotoResult = null
+                                pendingPhotoUri = null
+                                pendingPhotoFile?.delete()
+                                pendingPhotoFile = null
+                                result.error("camera_unavailable", "Could not open camera: ${e.message}", null)
                             }
-                            activity.startActivityForResult(
-                                Intent.createChooser(intent, "Select a nature photo"),
-                                PHOTO_PICK_REQUEST_CODE
-                            )
                         }
                     }
 
@@ -236,6 +312,44 @@ class EscapeMethodChannelHandler(
             }
     }
 
+    private var pendingWeekendRefresh = false
+
+    private fun loadWeekendPlaces(refresh: Boolean) {
+        weekendExplorer.discover(refresh) { data ->
+            val pending = pendingWeekendResult ?: return@discover
+            pendingWeekendResult = null
+            pending.success(data)
+        }
+    }
+
+    fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ): Boolean {
+        if (requestCode == RIDE_LOCATION_REQUEST) {
+            val pending = pendingRideResult
+            pendingRideResult = null
+            if (pending != null) {
+                if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                    PackageManager.PERMISSION_GRANTED) {
+                    sendMonitorAction(EscapeKeys.ACTION_START_RIDE)
+                    pending.success(true)
+                } else pending.error("gps_denied", "Precise location is required for cycling distance. Choose the walking quest instead.", null)
+            }
+            return true
+        }
+        if (requestCode != WEEKEND_LOCATION_REQUEST) return false
+        if (weekendExplorer.hasLocationPermission()) {
+            loadWeekendPlaces(pendingWeekendRefresh)
+        } else {
+            pendingWeekendResult?.success(mapOf(
+                "places" to emptyList<Any>(),
+                "message" to "Location permission denied. You can still do the offline weekend goals."
+            ))
+            pendingWeekendResult = null
+        }
+        return true
+    }
+
     fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -244,29 +358,61 @@ class EscapeMethodChannelHandler(
         if (requestCode == PHOTO_PICK_REQUEST_CODE) {
             val pending = pendingPhotoResult ?: return true
             pendingPhotoResult = null
-            val uri = if (resultCode == Activity.RESULT_OK) data?.data else null
-            if (uri == null) {
-                pending.success(mapOf("approved" to false, "message" to "Photo selection cancelled."))
+            val uri = pendingPhotoUri
+            val photoFile = pendingPhotoFile
+            pendingPhotoUri = null
+            pendingPhotoFile = null
+            if (resultCode != Activity.RESULT_OK || uri == null || photoFile == null || photoFile.length() < 1024) {
+                photoFile?.delete()
+                pending.success(mapOf("approved" to false, "message" to "Camera cancelled or no photo saved."))
                 return true
             }
+            if (MonitorService.activeInstance?.isProofReady() != true) {
+                photoFile.delete()
+                pending.success(mapOf("approved" to false, "message" to "Quest progress is no longer valid. Complete it again."))
+                return true
+            }
+            val snapshotTitle = preferences.getString(EscapeKeys.MISSION_TITLE, "")
             val tag = preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature")
-            PhotoProofVerifier(activity).verify(uri, tag) { evaluation ->
-                activity.runOnUiThread {
-                    val stillOutdoor = preferences.getBoolean(EscapeKeys.LOCKED, false) &&
-                            preferences.getBoolean(EscapeKeys.RUNNING, false) &&
-                            preferences.getString(EscapeKeys.LOCK_MODE, "walk") == EscapeKeys.LOCK_MODE_WALK &&
-                            preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature") == tag
-                    if (evaluation["approved"] == true && stillOutdoor) {
-                        sendMonitorAction(EscapeKeys.ACTION_PHOTO_APPROVED)
-                        pending.success(evaluation)
-                    } else {
-                        pending.success(
-                            if (stillOutdoor) evaluation else mapOf(
-                                "approved" to false,
-                                "message" to "Mission changed while checking photo. Please try the new mission."
+            val code = preferences.getString(EscapeKeys.MISSION_PROOF_CODE, "")
+            val instruction = preferences.getString(EscapeKeys.MISSION_INSTRUCTION, "")
+            val source = preferences.getString(EscapeKeys.MISSION_SOURCE, "fallback")
+            PhotoProofVerifier(activity).verify(uri, tag, code) { evidence ->
+                photoFile.delete() // no images retained on device after classification
+                if (!evidence.passed) {
+                    activity.runOnUiThread { pending.success(mapOf(
+                        "approved" to false, "message" to evidence.message
+                    )) }
+                } else {
+                    Thread({
+                        // Reuse MonitorService's loaded Gemma engine to avoid
+                        // loading a second 584MB model into memory.
+                        val gemmaDecision = try {
+                            MonitorService.activeInstance?.reviewProof(
+                                EscapeMission(snapshotTitle, instruction, source, tag), evidence
                             )
-                        )
-                    }
+                        } catch (_: Throwable) { null }
+                        activity.runOnUiThread {
+                            val sameMission = MonitorService.activeInstance?.isProofReady() == true &&
+                                preferences.getBoolean(EscapeKeys.LOCKED, false) &&
+                                preferences.getBoolean(EscapeKeys.RUNNING, false) &&
+                                preferences.getString(EscapeKeys.MISSION_TITLE, "") == snapshotTitle &&
+                                preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "") == tag &&
+                                preferences.getString(EscapeKeys.MISSION_PROOF_CODE, "") == code
+                            val approved = sameMission && gemmaDecision != false
+                            if (approved) sendMonitorAction(EscapeKeys.ACTION_PHOTO_APPROVED)
+                            pending.success(mapOf(
+                                "approved" to approved,
+                                "reviewer" to if (gemmaDecision == null) "offline-mlkit" else "gemma-text-plus-mlkit",
+                                "message" to when {
+                                    !sameMission -> "Mission changed. Please submit proof for the new mission."
+                                    gemmaDecision == false -> "Gemma could not confirm the written result matches the challenge. Try again with clearer, more relevant words."
+                                    gemmaDecision == true -> "Gemma reviewed the extracted proof. Social access earned!"
+                                    else -> "On-device proof check passed. Social access earned!"
+                                }
+                            ))
+                        }
+                    }, "escape-proof-review").start()
                 }
             }
             return true
@@ -427,6 +573,13 @@ class EscapeMethodChannelHandler(
             "socialSeconds" to 0,
             "walkSeconds" to preferences.getInt(EscapeKeys.WALK_SECONDS, 0),
             "walkSteps" to preferences.getInt(EscapeKeys.WALK_STEPS, 0),
+            "missionActivity" to preferences.getString(EscapeKeys.MISSION_ACTIVITY, ""),
+            "rideMeters" to preferences.getInt(EscapeKeys.RIDE_METERS, 0),
+            "rideTargetMeters" to preferences.getInt(EscapeKeys.RIDE_TARGET_METERS, 1500),
+            "walkTargetSeconds" to preferences.getInt(EscapeKeys.WALK_SECONDS_TARGET, 600),
+            "minRequiredSteps" to preferences.getInt(EscapeKeys.EFFECTIVE_MIN_STEPS, 600),
+            "proofReady" to (MonitorService.activeInstance?.isProofReady() == true),
+            "sunsetAware" to true,
             "stepSensorAvailable" to preferences.getBoolean(
                 EscapeKeys.STEP_SENSOR_AVAILABLE,
                 true
@@ -448,6 +601,7 @@ class EscapeMethodChannelHandler(
                 "fallback"
             ),
             "missionProofTag" to preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature"),
+            "missionProofCode" to preferences.getString(EscapeKeys.MISSION_PROOF_CODE, ""),
             "missionGenerating" to preferences.getBoolean(
                 EscapeKeys.MISSION_GENERATING,
                 false
@@ -469,8 +623,7 @@ class EscapeMethodChannelHandler(
         val clock = DaypartClock(activity, preferences)
         val issuedBoot = preferences.getInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, -1)
         if (issued >= 0L && now >= issued &&
-            (issuedBoot < 0 || issuedBoot == clock.bootCount())
-        ) {
+            (issuedBoot < 0 || issuedBoot == clock.bootCount())) {
             return max(0L, (until - now + 999L) / 1000L).toInt()
         }
         val fallback = preferences.getLong(EscapeKeys.ACCESS_UNTIL_MS, 0L)

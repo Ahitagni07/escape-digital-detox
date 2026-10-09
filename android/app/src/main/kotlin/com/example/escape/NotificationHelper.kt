@@ -15,6 +15,7 @@ class NotificationHelper(
         const val MISSION_CHANNEL_ID = "escape_missions"
         const val NOTIFICATION_ID = 7001
         const val MISSION_NOTIFICATION_ID = 7002
+        const val WEEKEND_NOTIFICATION_ID = 7003
     }
 
     fun createChannel() {
@@ -77,7 +78,7 @@ class NotificationHelper(
         }
 
         val title = if (evening) {
-            "🌙 Screen-free mission ready"
+            "🌙 Make something on paper"
         } else {
             "🌱 Earn your scroll"
         }
@@ -116,6 +117,27 @@ class NotificationHelper(
 
         context.getSystemService(NotificationManager::class.java)
             .notify(MISSION_NOTIFICATION_ID, notification)
+    }
+
+    fun showWeekendReminder() {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(context, MISSION_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION") Notification.Builder(context)
+        }
+        val notification = builder
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setContentTitle("🌿 Weekend ESCAPE adventure")
+            .setContentText("Discover a nearby cycleway, stroll, or grass stop. Earn your scroll outdoors!")
+            .setStyle(Notification.BigTextStyle().bigText(
+                "Try a bike-path explorer ride or take a gentle nature walk. " +
+                "Open ESCAPE → Weekend adventures for mapped nearby ideas."
+            ))
+            .setAutoCancel(true)
+            .setContentIntent(appPendingIntent())
+            .build()
+        context.getSystemService(NotificationManager::class.java)
+            .notify(WEEKEND_NOTIFICATION_ID, notification)
     }
 
     fun cancelMissionReminder() {

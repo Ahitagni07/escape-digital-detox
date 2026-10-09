@@ -71,7 +71,9 @@ flutter {
 }
 
 dependencies {
+    implementation("androidx.core:core:1.15.0")
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.17.1")
     // Small bundled offline classifier: no network on first photo.
     implementation("com.google.mlkit:image-labeling:17.0.9")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 }

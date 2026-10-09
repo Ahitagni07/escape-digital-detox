@@ -22,6 +22,11 @@ object EscapeKeys {
     const val EVENING_UNLOCK_AT_MS = "evening_unlock_at_ms" // Legacy v5.
     const val ACCESS_UNTIL_MS = "access_until_ms"
     const val MISSION_ACTIVE = "mission_active"
+    const val MISSION_ACTIVITY = "mission_activity" // walk | cycle | indoor
+    const val RIDE_METERS = "ride_meters"
+    const val MOVEMENT_NOTIFIED = "movement_notified"
+    const val RIDE_TARGET_METERS = "ride_target_meters"
+    const val QUEST_VERSION = "quest_version"
     const val NEXT_MISSION_REMINDER_MS = "next_mission_reminder_ms"
     const val SOCIAL_SECONDS = "social_seconds" // Legacy.
     const val WALK_SECONDS = "walk_seconds"
@@ -31,6 +36,7 @@ object EscapeKeys {
 
     const val LOCK_MODE_WALK = "walk"
     const val LOCK_MODE_EVENING = "evening"
+    const val LOCK_MODE_WEEKEND = "weekend"
 
     const val INTERRUPTIONS = "interruptions"
     const val MISSIONS_COMPLETED = "missions_completed"
@@ -55,6 +61,7 @@ object EscapeKeys {
     const val MISSION_SOURCE = "mission_source"
     const val MISSION_GENERATING = "mission_generating"
     const val MISSION_PROOF_TAG = "mission_proof_tag"
+    const val MISSION_PROOF_CODE = "mission_proof_code"
     const val MISSION_VARIANT_INDEX = "mission_variant_index"
     const val ACCESS_UNTIL_ELAPSED = "access_until_elapsed"
     const val ACCESS_ISSUED_ELAPSED = "access_issued_elapsed"
@@ -70,9 +77,11 @@ object EscapeKeys {
     // need to run for every notification.
     const val DAY_MISSION_POOL_JSON = "day_mission_pool_json"
     const val EVENING_MISSION_POOL_JSON = "evening_mission_pool_json"
+    const val WEEKEND_MISSION_POOL_JSON = "weekend_mission_pool_json"
 
     const val ACTION_TEST_LOCK = "com.example.escape.TEST_LOCK"
     const val ACTION_START_MISSION = "com.example.escape.START_MISSION"
+    const val ACTION_START_RIDE = "com.example.escape.START_RIDE"
     const val ACTION_PHOTO_APPROVED = "com.example.escape.PHOTO_APPROVED"
     const val ACTION_EMERGENCY_UNLOCK = "com.example.escape.EMERGENCY_UNLOCK"
 }

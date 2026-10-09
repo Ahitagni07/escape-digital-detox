@@ -22,11 +22,17 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
 
   int walkMinutes = 10;
   int minSteps = 600;
-  int accessMinutes = 45;
+  int accessMinutes = 30;
 
   int accessRemainingSeconds = 0;
   int walkSeconds = 0;
   int walkSteps = 0;
+  int walkTargetSeconds = 600;
+  int minRequiredSteps = 600;
+  int rideMeters = 0;
+  int rideTargetMeters = 1500;
+  String missionActivity = '';
+  bool proofReady = false;
   bool stepSensorAvailable = true;
   String foregroundPackage = '';
 
@@ -42,6 +48,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
   String missionInstruction = 'Complete a screen-free mission first.';
   String missionSource = 'fallback';
   String missionProofTag = 'nature';
+  String missionProofCode = '';
   bool missionGenerating = false;
   bool aiModelInstalled = false;
   bool aiEngineReady = false;
@@ -137,7 +144,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
       final savedMinSteps =
           (result['minSteps'] as num?)?.toInt() ?? 600;
       final savedAccessMinutes =
-          (result['accessMinutes'] as num?)?.toInt() ?? 45;
+          (result['accessMinutes'] as num?)?.toInt() ?? 30;
 
       const allowedWalkMinutes = <int>{5, 10, 15, 20, 30};
       const allowedMinSteps = <int>{300, 600, 800, 1000, 1500};
@@ -188,6 +195,12 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
       lockMode = result['lockMode']?.toString() ?? 'walk';
       walkSeconds = (result['walkSeconds'] as num?)?.toInt() ?? 0;
       walkSteps = (result['walkSteps'] as num?)?.toInt() ?? 0;
+      walkTargetSeconds = (result['walkTargetSeconds'] as num?)?.toInt() ?? 600;
+      minRequiredSteps = (result['minRequiredSteps'] as num?)?.toInt() ?? 600;
+      rideMeters = (result['rideMeters'] as num?)?.toInt() ?? 0;
+      rideTargetMeters = (result['rideTargetMeters'] as num?)?.toInt() ?? 1500;
+      missionActivity = result['missionActivity']?.toString() ?? '';
+      proofReady = result['proofReady'] == true;
       stepSensorAvailable = result['stepSensorAvailable'] != false;
       foregroundPackage = result['foregroundPackage']?.toString() ?? '';
 
@@ -207,6 +220,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
           'Complete a screen-free mission first.';
       missionSource = result['missionSource']?.toString() ?? 'fallback';
       missionProofTag = result['missionProofTag']?.toString() ?? 'nature';
+      missionProofCode = result['missionProofCode']?.toString() ?? '';
       missionGenerating = result['missionGenerating'] == true;
       aiModelInstalled = result['aiModelInstalled'] == true;
       aiEngineReady = result['aiEngineReady'] == true;
@@ -325,13 +339,34 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
     await _native.startMission();
     await Future<void>.delayed(const Duration(milliseconds: 250));
     await refreshStatus();
-    return lockMode == 'evening'
-        ? 'Screen-free evening mission started.'
-        : 'Mission started. Put the phone away and go earn your scroll.';
+    return missionActive
+        ? (lockMode == 'evening'
+            ? 'Indoor quest started. Complete the writing activity, then take a photo.'
+            : 'Walking quest started. Pocket your phone and enjoy your surroundings.')
+        : 'Quest could not start. Check ESCAPE permissions.';
+  }
+
+  Future<String> startCycleQuest() async {
+    try {
+      await _native.startCycleQuest();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await refreshStatus();
+      return missionActivity == 'cycle' && missionActive
+          ? 'Cycle quest started. GPS distance is measured locally while ESCAPE protection is active.'
+          : 'Could not start bicycle GPS tracking. Enable precise location and try again.';
+    } on PlatformException catch (e) {
+      return e.message ?? 'Bicycle tracking unavailable. Choose a walking quest instead.';
+    }
+  }
+
+  Future<String> speakMission() async {
+    final ok = await _native.speakMission();
+    return ok ? 'Mission spoken using your phone’s offline voice.'
+        : 'No offline English TTS voice available. Install one from Android Text-to-speech settings.';
   }
 
   Future<String> submitMissionPhoto() async {
-    if (!locked || lockMode == 'evening') return 'No outdoor photo mission is waiting.';
+    if (!locked) return 'No photo mission is waiting.';
     try {
       final evaluation = await _native.submitMissionPhoto();
       await Future<void>.delayed(const Duration(milliseconds: 450));

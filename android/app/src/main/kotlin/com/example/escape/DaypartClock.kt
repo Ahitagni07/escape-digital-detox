@@ -36,7 +36,23 @@ class DaypartClock(private val context: Context, private val prefs: EscapePrefer
         return wall + (elapsed - previousElapsed)
     }
 
-    fun isEvening(): Boolean = Calendar.getInstance(homeZone).apply {
-        timeInMillis = nowMillis()
-    }.get(Calendar.HOUR_OF_DAY) >= 18
+    /** Uses previously cached coordinates; never fetches GPS without user permission. */
+    fun isEvening(): Boolean {
+        val now = nowMillis()
+        val cached = context.getSharedPreferences("escape_weekend_places", Context.MODE_PRIVATE)
+        val lat = cached.getString("lat", "")?.toDoubleOrNull()
+        val lon = cached.getString("lon", "")?.toDoubleOrNull()
+        if (lat != null && lon != null) {
+            val solar = SunsetPlanner.forDate(now, lat, lon)
+            if (solar != null) {
+                // No unsafe missions at night / dawn; 30 min twilight buffer.
+                return now < solar.sunriseUtcMillis + 30*60_000L ||
+                    now >= solar.sunsetUtcMillis - 30*60_000L
+            }
+        }
+        // Conservative fallback before user has looked up nearby places.
+        val hour = Calendar.getInstance(homeZone).apply { timeInMillis = now }
+            .get(Calendar.HOUR_OF_DAY)
+        return hour >= 18 || hour < 7
+    }
 }

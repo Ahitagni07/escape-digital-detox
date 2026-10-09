@@ -3,6 +3,23 @@ import 'package:flutter/services.dart';
 class EscapeNativeBridge {
   static const MethodChannel _channel = MethodChannel('escape/native');
 
+  Future<Map<String, dynamic>> getSavedWeekendPlaces() async {
+    return await _channel.invokeMapMethod<String, dynamic>('getSavedWeekendPlaces') ??
+        <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getWeekendPlaces({bool refresh = false}) async {
+    return await _channel.invokeMapMethod<String, dynamic>(
+      'getWeekendPlaces', {'refresh': refresh},
+    ) ?? <String, dynamic>{};
+  }
+
+  Future<void> openWeekendCyclingDirections(double latitude, double longitude) async {
+    await _channel.invokeMethod('openWeekendCyclingDirections', {
+      'latitude': latitude, 'longitude': longitude,
+    });
+  }
+
   Future<Map<String, dynamic>> getPermissionStatus() async {
     return await _channel.invokeMapMethod<String, dynamic>('getPermissionStatus') ??
         <String, dynamic>{};
@@ -49,6 +66,14 @@ class EscapeNativeBridge {
   Future<Map<String, dynamic>> submitMissionPhoto() async {
     return await _channel.invokeMapMethod<String, dynamic>('submitMissionPhoto') ??
         <String, dynamic>{};
+  }
+
+  Future<bool> startCycleQuest() async {
+    return await _channel.invokeMethod<bool>('startCycleQuest') ?? false;
+  }
+
+  Future<bool> speakMission() async {
+    return await _channel.invokeMethod<bool>('speakMission') ?? false;
   }
 
   Future<void> startMission() async {

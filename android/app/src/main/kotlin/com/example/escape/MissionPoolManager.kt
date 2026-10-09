@@ -81,6 +81,9 @@ class MissionPoolManager(
                     val source = obj.optString("source", "gemma-local")
                     // Ignore v6 cache: those prompts did not include photo targets.
                     if (!obj.has("proofTag")) continue
+                    // v7 evening timer-only missions are incompatible with photo proof.
+                    if (lockMode == EscapeKeys.LOCK_MODE_EVENING &&
+                        obj.optString("proofTag") != "writing") continue
                     if (title.isNotBlank() && instruction.isNotBlank()) {
                         add(EscapeMission(title, instruction, source, obj.optString("proofTag", "nature")))
                     }
