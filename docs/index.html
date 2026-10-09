@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10291b">
+  <meta name="description" content="ESCAPE turns social-media time into real-world adventures. Step outside, discover nature and earn your scroll with on-device AI.">
+  <meta property="og:title" content="ESCAPE — The World Is Your Password">
+  <meta property="og:description" content="Less scrolling. More strolling. An Android digital-detox adventure powered by offline AI.">
+  <meta property="og:type" content="website">
+  <title>ESCAPE — The World Is Your Password</title>
+  <link rel="icon" type="image/webp" href="assets/escape-icon.webp">
+  <style>
+    :root { color-scheme: dark; --ink:#ebf7ea; --muted:#a5bcad; --leaf:#c7f478; --bg:#0c1c13; --panel:#183124; --edge:#324b39; --soft:#213c2a; }
+    * {box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
+    body::before{content:'';position:absolute;left:8%;top:2%;width:70vw;height:48vw;border-radius:50%;background:radial-gradient(ellipse,rgba(94,179,106,.14),transparent 70%);pointer-events:none;z-index:-1}
+    a {color:inherit} .wrap{width:min(1120px,calc(100% - 42px));margin:auto}
+    header{padding:24px 0;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .brand{display:inline-flex;gap:11px;align-items:center;font-weight:800;font-size:19px;letter-spacing:.02em;text-decoration:none}
+    .brand img{width:39px;height:39px;border-radius:13px} nav{display:flex;gap:23px}nav a{font-size:14px;text-decoration:none;color:var(--muted)} nav a:hover{color:var(--leaf)}
+    .hero{padding:62px 0 45px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(285px,.9fr);gap:80px;align-items:center}
+    .eyebrow{display:inline-block;color:var(--leaf);font-weight:750;letter-spacing:.15em;text-transform:uppercase;font-size:12px;margin-bottom:17px}
+    h1{font-size:clamp(44px,6.4vw,77px);line-height:1.02;letter-spacing:-.055em;margin:0 0 24px;font-weight:850} h1 span{color:var(--leaf)}
+    .lead{font-size:19px;max-width:590px;color:#c2d7c8;line-height:1.65;margin:0 0 29px}
+    .actions{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:9px;justify-content:center;text-decoration:none;border:1px solid var(--edge);background:var(--panel);padding:13px 18px;border-radius:12px;font-weight:750;font-size:14px;transition:.2s}
+    .btn.primary{background:var(--leaf);color:#152519;border-color:var(--leaf)}.btn:hover{transform:translateY(-2px)}
+    .note{color:var(--muted);font-size:13px;margin-top:16px}
+    .phone{background:linear-gradient(145deg,#1e3a27,#0a170e);border:1px solid #3a5944;border-radius:39px;padding:13px;box-shadow:0 28px 75px #0007;max-width:348px;margin:0 auto;position:relative}
+    .phone::before{content:'';position:absolute;top:8px;left:calc(50% - 36px);width:72px;height:9px;border-radius:20px;background:#071209;z-index:3}
+    .phone img{width:100%;display:block;border-radius:28px;}
+    .phonecap{text-align:center;font-size:12px;color:var(--muted);margin:14px 0 0}
+    section{padding:60px 0} h2{font-size:clamp(27px,4vw,42px);margin:0 0 12px;letter-spacing:-.035em}
+    .sectionlead{color:var(--muted);margin:0 0 26px;max-width:680px}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:17px} .card{border:1px solid var(--edge);background:var(--panel);padding:26px;border-radius:19px;min-height:200px}
+    .number{display:inline-grid;place-items:center;background:#d1f7a3;color:#142517;width:39px;height:39px;border-radius:100px;font-weight:850;margin-bottom:18px}
+    .card h3{margin:0 0 8px;font-size:19px}.card p{color:var(--muted);margin:0;font-size:15px}
+    .features{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}.feature{padding:24px;background:#13291c;border:1px solid var(--edge);border-radius:17px}
+    .feature h3{margin:0 0 9px;font-size:18px}.feature p{margin:0;color:var(--muted);font-size:15px}
+    .feature:nth-child(1){grid-column:span 2}
+    .callout{border-radius:24px;background:linear-gradient(130deg,#1d3c26,#193424);border:1px solid #3f6345;padding:32px}
+    .callout p{color:var(--muted);margin:10px 0 21px;max-width:760px}
+    footer{border-top:1px solid var(--edge);color:var(--muted);padding:26px 0 48px;font-size:13px}
+    @media(max-width:820px){.hero{gap:35px;padding:30px 0 45px}.phone{max-width:300px}}
+    @media(max-width:680px){header{padding:18px 0}nav{gap:14px}.hero{grid-template-columns:1fr;gap:30px;padding:32px 0}.hero .phonewrap{grid-row:2}.phone{max-width:275px}h1{font-size:49px}.lead{font-size:16px}.cards,.features{grid-template-columns:1fr}.feature:nth-child(1){grid-column:auto}section{padding:38px 0}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a href="#top" class="brand"><img src="assets/escape-icon.webp" alt="ESCAPE logo">ESCAPE 🌱</a>
+      <nav aria-label="Main navigation"><a href="#how">How it works</a><a href="#features">Features</a><a href="https://github.com/Ahitagni07/escape-digital-detox" target="_blank" rel="noopener noreferrer">GitHub ↗</a></nav>
+    </header>
+    <main id="top">
+      <div class="hero">
+        <div>
+          <span class="eyebrow">Hacktoberfest 2026 · Touch Grass</span>
+          <h1>The world is <span>your password.</span></h1>
+          <p class="lead">ESCAPE is an Android digital-detox adventure. Instead of endless scrolling, take a stroll, discover something in nature and earn a little social-media time back.</p>
+          <div class="actions">
+            <a class="btn primary" href="#how">See how it works <span aria-hidden="true">↘</span></a>
+            <a class="btn" href="https://github.com/Ahitagni07/escape-digital-detox" target="_blank" rel="noopener noreferrer">Explore the code ↗</a>
+          </div>
+          <p class="note">Built with Flutter, Kotlin, on-device Gemma and ML Kit. No ESCAPE cloud backend.</p>
+        </div>
+        <div class="phonewrap">
+          <div class="phone"><img src="assets/escape-mission.webp" alt="Real Android screenshot of ESCAPE displaying a nature quest, step progress, and the photo-proof action" width="468" height="810" loading="eager"></div>
+          <p class="phonecap">Real Android screenshot · Mission screen (earlier build)</p>
+        </div>
+      </div>
+      <section id="how" aria-labelledby="steps-heading">
+        <span class="eyebrow">From screen time to green time</span>
+        <h2 id="steps-heading">Three clues. One earned reward.</h2>
+        <p class="sectionlead">When you try a protected social app, ESCAPE guides you through a real-world quest.</p>
+        <div class="cards">
+          <article class="card"><div class="number">01</div><h3>Move</h3><p>Put your phone away and take a short walk. ESCAPE tracks time and steps locally.</p></article>
+          <article class="card"><div class="number">02</div><h3>Discover</h3><p>Spot a real-world clue: grass, a tree, a flower or a beautiful reflection.</p></article>
+          <article class="card"><div class="number">03</div><h3>Capture & earn</h3><p>Photograph your discovery. An on-device image checker reviews it and, if accepted, unlocks a limited scrolling window.</p></article>
+        </div>
+      </section>
+      <section id="features" aria-labelledby="features-heading">
+        <span class="eyebrow">More than an app blocker</span>
+        <h2 id="features-heading">Real life has better side quests.</h2>
+        <div class="features">
+          <div class="feature"><h3>🚲 Weekend Adventures</h3><p>Find nearby cycling infrastructure and green places with optional map search. Discoveries can be saved for later; new searches need internet.</p></div>
+          <div class="feature"><h3>🌱 Offline nature quests</h3><p>Gemma generates creative missions on your phone after its one-time model setup. No API key or ESCAPE server is needed.</p></div>
+          <div class="feature"><h3>🌙 After-dark alternatives</h3><p>Meaningful, nature-inspired indoor challenges when an outdoor mission is no longer appropriate.</p></div>
+          <div class="feature"><h3>🔒 Earn your scroll</h3><p>Successfully complete a quest and earn a temporary social-media access window, not unlimited screen time.</p></div>
+        </div>
+      </section>
+      <section aria-labelledby="try-heading">
+        <div class="callout">
+          <span class="eyebrow">Open-source prototype</span>
+          <h2 id="try-heading">See the code. Follow the adventure.</h2>
+          <p>ESCAPE is an Android app, not a browser app. This page showcases its real experience. Source code is public; Android test builds can be shared separately through GitHub Releases when available.</p>
+          <div class="actions">
+            <a class="btn primary" href="https://github.com/Ahitagni07/escape-digital-detox" target="_blank" rel="noopener noreferrer">Open GitHub repo ↗</a>
+            <a class="btn" href="https://github.com/Ahitagni07/escape-digital-detox/releases" target="_blank" rel="noopener noreferrer">View releases ↗</a>
+          </div>
+          <p class="note">Reminder: the existing model-only release is not an installable app. Do not install model weights as an APK.</p>
+        </div>
+      </section>
+    </main>
+    <footer><strong>ESCAPE</strong> · Less scrolling. More strolling. 🌿 &nbsp; · &nbsp; Hacktoberfest 2026 experimental project.</footer>
+  </div>
+</body>
+</html>

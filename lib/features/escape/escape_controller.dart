@@ -365,17 +365,31 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
         : 'No offline English TTS voice available. Install one from Android Text-to-speech settings.';
   }
 
-  Future<String> submitMissionPhoto() async {
-    if (!locked) return 'No photo mission is waiting.';
+  Future<Map<String, dynamic>> captureMissionPhoto() async {
+    if (!locked || !proofReady) return {
+      'captured': false,
+      'message': 'Complete the mission goal before capturing the photo.',
+    };
     try {
-      final evaluation = await _native.submitMissionPhoto();
-      await Future<void>.delayed(const Duration(milliseconds: 450));
-      await refreshStatus();
-      return evaluation['message']?.toString() ??
-          (evaluation['approved'] == true ? 'Photo approved!' : 'Try another photo.');
+      return await _native.captureMissionPhoto();
     } on PlatformException catch (error) {
-      return error.message ?? 'Photo verification failed.';
+      return {'captured': false, 'message': error.message ?? 'Camera failed.'};
     }
+  }
+
+  Future<Map<String, dynamic>> analyzeMissionPhoto() async {
+    try {
+      final result = await _native.analyzeMissionPhoto();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await refreshStatus();
+      return result;
+    } on PlatformException catch (error) {
+      return {'approved': false, 'message': error.message ?? 'Analysis failed.'};
+    }
+  }
+
+  Future<void> discardMissionPhoto() async {
+    await _native.discardMissionPhoto();
   }
 
   Future<String> stopEscape() async {

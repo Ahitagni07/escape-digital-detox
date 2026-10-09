@@ -1,0 +1,6 @@
+# Copy to android/key.properties and fill in your own upload key details.
+# NEVER commit key.properties or the keystore file.
+storePassword=REPLACE_ME
+keyPassword=REPLACE_ME
+keyAlias=escape-upload
+storeFile=C:/PATH/TO/YOUR/escape-upload-keystore.jks

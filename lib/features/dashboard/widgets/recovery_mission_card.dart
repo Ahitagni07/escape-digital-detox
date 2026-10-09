@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../escape/escape_controller.dart';
 
@@ -11,6 +12,10 @@ class RecoveryMissionCard extends StatefulWidget {
 
 class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
   bool _busy = false;
+  String? _photoPath;
+  String? _photoMission;
+  String? _photoFeedback;
+  bool? _approved;
 
   Future<void> _run(Future<String> Function() action) async {
     if (_busy) return;
@@ -26,6 +31,53 @@ class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _capturePhoto() async {
+    if (_busy) return;
+    setState(() { _busy = true; _photoFeedback = null; _approved = null; });
+    try {
+      final response = await widget.controller.captureMissionPhoto();
+      if (!mounted) return;
+      setState(() {
+        _photoPath = response['captured'] == true ? response['path']?.toString() : null;
+        _photoMission = response['captured'] == true ? widget.controller.missionTitle : null;
+        _photoFeedback = response['message']?.toString();
+      });
+    } catch (e) {
+      if (mounted) setState(() => _photoFeedback = 'Camera error: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _analyzePhoto() async {
+    if (_busy || _photoPath == null) return;
+    setState(() { _busy = true; _photoFeedback = 'Analyzing image locally…'; _approved = null; });
+    try {
+      final response = await widget.controller.analyzeMissionPhoto();
+      if (!mounted) return;
+      final passed = response['approved'] == true;
+      setState(() {
+        _approved = passed;
+        _photoFeedback = response['message']?.toString() ??
+            (passed ? 'Mission approved!' : 'Photo did not match your mission.');
+        if (passed) { _photoPath = null; _photoMission = null; }
+      });
+    } catch (e) {
+      if (mounted) setState(() { _approved = false; _photoFeedback = 'Analysis failed: $e'; });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _discardPhoto() async {
+    if (_busy) return;
+    try { await widget.controller.discardMissionPhoto(); } catch (_) { }
+    if (mounted) setState(() {
+      _photoPath = null; _photoMission = null;
+      _photoFeedback = null; _approved = null;
+    });
   }
 
   @override
@@ -92,9 +144,9 @@ class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
               night ? 'Write at least 20 readable words; include: ${c.missionProofCode}'
                     : 'Nature subject: ${c.missionProofTag}. Do not enter restricted or unsafe areas.',
               false),
-          clue('3', 'Capture fresh proof',
-              'Use the camera now; saved gallery images are not accepted. '
-              'Local image/text recognition checks the result.', false),
+          clue('3', 'Photograph and review',
+              'Capture a new photo, check the preview, then tap Analyze photo. '
+              'Everything stays on your phone.', _approved == true),
           const SizedBox(height: 14),
           if (!c.missionActive)
             FilledButton.icon(
@@ -110,12 +162,76 @@ class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
               label: const Text('START BICYCLE QUEST (GPS)'),
             ),
           ],
-          if (c.missionActive) FilledButton.icon(
-            onPressed: _busy || !c.proofReady ? null : () => _run(c.submitMissionPhoto),
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: Text(_busy ? 'CHECKING PROOF…' : c.proofReady
-                ? 'CAPTURE FRESH PHOTO & UNLOCK' : 'FINISH CLUE 1 TO UNLOCK CAMERA'),
-          ),
+          if (c.missionActive && _photoPath == null) ...[
+            FilledButton.icon(
+              onPressed: _busy || !c.proofReady ? null : _capturePhoto,
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: Text(_busy ? 'OPENING CAMERA…' : c.proofReady
+                  ? 'CAPTURE MISSION PHOTO' : 'FINISH CLUE 1 TO USE CAMERA'),
+            ),
+          ],
+          if (c.missionActive && _photoPath != null && _photoMission == c.missionTitle) ...[
+            const SizedBox(height: 12),
+            Text('Review your photo', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(_photoPath!),
+                height: 230,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                cacheWidth: 1200,
+                errorBuilder: (_, error, stackTrace) => const SizedBox(
+                  height: 120,
+                  child: Center(child: Text('Preview unavailable — retake photo')),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('Does your photo clearly show ${c.missionProofTag}?',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: FilledButton.icon(
+                onPressed: _busy ? null : _analyzePhoto,
+                icon: const Icon(Icons.auto_awesome),
+                label: Text(_busy ? 'ANALYZING…' : 'ANALYZE PHOTO'),
+              )),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _capturePhoto,
+                child: const Text('RETAKE'),
+              ),
+            ]),
+            TextButton.icon(
+              onPressed: _busy ? null : _discardPhoto,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Discard photo'),
+            ),
+          ],
+          if (_photoFeedback != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: _approved == true
+                    ? Colors.green.withValues(alpha: 0.10)
+                    : _approved == false
+                        ? Colors.orange.withValues(alpha: 0.12)
+                        : Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+              child: Row(children: [
+                Icon(_approved == true ? Icons.check_circle
+                    : _approved == false ? Icons.info_outline : Icons.camera_alt_outlined,
+                    color: _approved == true ? Colors.green : null),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_photoFeedback!)),
+              ]),
+            ),
+          ],
           const SizedBox(height: 9),
           Text(night ? 'After dark: indoor proof only. No night cycling required.'
                : 'Keep the phone in your pocket while moving. Stop safely before taking a photo.',

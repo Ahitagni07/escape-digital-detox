@@ -21,9 +21,15 @@ val gemmaModelUrl =
 fun String.asBuildConfigString(): String =
     "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val hasReleaseKey = rootProject.file("key.properties").exists()
+
 android {
     namespace = "com.example.escape"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = maxOf(36, flutter.compileSdkVersion)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -34,7 +40,7 @@ android {
     defaultConfig {
         applicationId = "com.example.escape"
         minSdk = 24
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
 
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -52,10 +58,30 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        create("playUpload") {
+            if (hasReleaseKey) {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Development/testing only. Replace before Play Store release.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            // Debug signing only for local experiments. For Play publishing,
+            // add android/key.properties and use the playUpload key.
+            signingConfig = if (hasReleaseKey)
+                signingConfigs.getByName("playUpload")
+            else signingConfigs.getByName("debug")
         }
     }
 }

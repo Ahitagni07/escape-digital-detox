@@ -41,6 +41,8 @@ class EscapeMethodChannelHandler(
     private var pendingPhotoResult: MethodChannel.Result? = null
     private var pendingPhotoUri: Uri? = null
     private var pendingPhotoFile: File? = null
+    private var capturedProofFile: File? = null
+    private var capturedProofSignature: String? = null
     private var pendingRideResult: MethodChannel.Result? = null
     private var pendingWeekendResult: MethodChannel.Result? = null
     private val weekendExplorer = WeekendExplorer(activity)
@@ -194,19 +196,20 @@ class EscapeMethodChannelHandler(
                         result.success(MonitorService.activeInstance?.readMissionAloud() == true)
                     }
 
-                    "submitMissionPhoto" -> {
+                    // Capture and verification are intentionally separate operations.
+                    // Flutter can preview the private cached image before review.
+                    "captureMissionPhoto" -> {
                         if (!preferences.getBoolean(EscapeKeys.RUNNING, false) ||
                             !preferences.getBoolean(EscapeKeys.LOCKED, false)) {
-                            result.success(mapOf("approved" to false,
-                                "message" to "No mission is waiting."))
+                            result.success(mapOf("captured" to false, "message" to "No mission is waiting."))
                         } else if (pendingPhotoResult != null) {
-                            result.error("photo_busy", "A camera capture is already open.", null)
+                            result.error("photo_busy", "Camera already open.", null)
                         } else if (MonitorService.activeInstance?.isProofReady() != true) {
-                            result.success(mapOf("approved" to false,
-                                "message" to "Finish your movement/time target before taking the proof photo."))
+                            result.success(mapOf("captured" to false,
+                                "message" to "Complete your walk/ride or evening activity before taking a photo."))
                         } else {
-                            // Fresh in-app camera capture only; no gallery/reused photos.
                             try {
+                                deleteCapturedProof()
                                 val folder = File(activity.cacheDir, "proofs").apply { mkdirs() }
                                 val file = File.createTempFile("quest_", ".jpg", folder)
                                 val uri = FileProvider.getUriForFile(activity,
@@ -216,8 +219,8 @@ class EscapeMethodChannelHandler(
                                     clipData = ClipData.newUri(activity.contentResolver, "quest", uri)
                                     addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                pendingPhotoUri = uri
                                 pendingPhotoFile = file
+                                pendingPhotoUri = uri
                                 pendingPhotoResult = result
                                 activity.startActivityForResult(intent, PHOTO_PICK_REQUEST_CODE)
                             } catch (e: Exception) {
@@ -226,6 +229,74 @@ class EscapeMethodChannelHandler(
                                 pendingPhotoFile?.delete()
                                 pendingPhotoFile = null
                                 result.error("camera_unavailable", "Could not open camera: ${e.message}", null)
+                            }
+                        }
+                    }
+
+                    "discardMissionPhoto" -> {
+                        deleteCapturedProof()
+                        result.success(true)
+                    }
+
+                    "analyzeMissionPhoto" -> {
+                        val file = capturedProofFile
+                        if (file == null || !file.exists() || file.length() < 1024L) {
+                            result.success(mapOf("approved" to false,
+                                "message" to "No photo to analyze. Capture a fresh photo first."))
+                        } else if (MonitorService.activeInstance?.isProofReady() != true ||
+                            capturedProofSignature != proofSignature()) {
+                            deleteCapturedProof()
+                            result.success(mapOf("approved" to false,
+                                "message" to "The mission changed or is no longer ready. Take a new photo."))
+                        } else {
+                            val photoUri = FileProvider.getUriForFile(activity,
+                                "${activity.packageName}.fileprovider", file)
+                            val snapshotTitle = preferences.getString(EscapeKeys.MISSION_TITLE, "")
+                            val tag = preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature")
+                            val code = preferences.getString(EscapeKeys.MISSION_PROOF_CODE, "")
+                            val instruction = preferences.getString(EscapeKeys.MISSION_INSTRUCTION, "")
+                            val source = preferences.getString(EscapeKeys.MISSION_SOURCE, "fallback")
+                            PhotoProofVerifier(activity).verify(photoUri, tag, code) { evidence ->
+                                if (!evidence.passed) {
+                                    activity.runOnUiThread {
+                                        result.success(mapOf(
+                                            "approved" to false, "message" to evidence.message,
+                                            "reviewer" to "offline-mlkit"))
+                                    }
+                                } else {
+                                    Thread({
+                                        // Gemma is text-only. ML Kit evaluates the pixels.
+                                        // Reuse the loaded model for optional review of labels/OCR.
+                                        val gemmaDecision = try {
+                                            MonitorService.activeInstance?.reviewProof(
+                                                EscapeMission(snapshotTitle, instruction, source, tag), evidence)
+                                        } catch (_: Throwable) { null }
+                                        activity.runOnUiThread {
+                                            val sameMission = MonitorService.activeInstance?.isProofReady() == true &&
+                                                preferences.getBoolean(EscapeKeys.LOCKED, false) &&
+                                                preferences.getBoolean(EscapeKeys.RUNNING, false) &&
+                                                capturedProofSignature == proofSignature() &&
+                                                capturedProofFile == file
+                                            val approved = sameMission && gemmaDecision != false
+                                            if (approved) {
+                                                // Send native unlock before returning approval.
+                                                sendMonitorAction(EscapeKeys.ACTION_PHOTO_APPROVED)
+                                                deleteCapturedProof()
+                                            }
+                                            result.success(mapOf(
+                                                "approved" to approved,
+                                                "reviewer" to if (gemmaDecision == null)
+                                                    "offline-mlkit" else "gemma-text-plus-mlkit",
+                                                "message" to when {
+                                                    !sameMission -> "Quest changed. Capture proof for the current quest."
+                                                    gemmaDecision == false -> "Photo was readable, but did not clearly match the quest. Retake it with the requested subject visible."
+                                                    gemmaDecision == true -> "Approved! Gemma reviewed the extracted clues. Social access earned."
+                                                    else -> "Approved by offline photo recognition! Social access earned."
+                                                }
+                                            ))
+                                        }
+                                    }, "escape-photo-analysis").start()
+                                }
                             }
                         }
                     }
@@ -314,6 +385,19 @@ class EscapeMethodChannelHandler(
 
     private var pendingWeekendRefresh = false
 
+    private fun proofSignature(): String = listOf(
+        preferences.getString(EscapeKeys.MISSION_TITLE, ""),
+        preferences.getString(EscapeKeys.MISSION_PROOF_TAG, ""),
+        preferences.getString(EscapeKeys.MISSION_PROOF_CODE, ""),
+        preferences.getString(EscapeKeys.MISSION_ACTIVITY, "")
+    ).joinToString("::")
+
+    private fun deleteCapturedProof() {
+        capturedProofFile?.delete()
+        capturedProofFile = null
+        capturedProofSignature = null
+    }
+
     private fun loadWeekendPlaces(refresh: Boolean) {
         weekendExplorer.discover(refresh) { data ->
             val pending = pendingWeekendResult ?: return@discover
@@ -358,63 +442,28 @@ class EscapeMethodChannelHandler(
         if (requestCode == PHOTO_PICK_REQUEST_CODE) {
             val pending = pendingPhotoResult ?: return true
             pendingPhotoResult = null
-            val uri = pendingPhotoUri
-            val photoFile = pendingPhotoFile
-            pendingPhotoUri = null
+            val file = pendingPhotoFile
             pendingPhotoFile = null
-            if (resultCode != Activity.RESULT_OK || uri == null || photoFile == null || photoFile.length() < 1024) {
-                photoFile?.delete()
-                pending.success(mapOf("approved" to false, "message" to "Camera cancelled or no photo saved."))
+            pendingPhotoUri = null
+            if (resultCode != Activity.RESULT_OK || file == null || file.length() < 1024L) {
+                file?.delete()
+                pending.success(mapOf("captured" to false,
+                    "message" to "No photo was saved. Try again."))
                 return true
             }
             if (MonitorService.activeInstance?.isProofReady() != true) {
-                photoFile.delete()
-                pending.success(mapOf("approved" to false, "message" to "Quest progress is no longer valid. Complete it again."))
+                file.delete()
+                pending.success(mapOf("captured" to false,
+                    "message" to "Mission progress changed. Complete the goal again."))
                 return true
             }
-            val snapshotTitle = preferences.getString(EscapeKeys.MISSION_TITLE, "")
-            val tag = preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "nature")
-            val code = preferences.getString(EscapeKeys.MISSION_PROOF_CODE, "")
-            val instruction = preferences.getString(EscapeKeys.MISSION_INSTRUCTION, "")
-            val source = preferences.getString(EscapeKeys.MISSION_SOURCE, "fallback")
-            PhotoProofVerifier(activity).verify(uri, tag, code) { evidence ->
-                photoFile.delete() // no images retained on device after classification
-                if (!evidence.passed) {
-                    activity.runOnUiThread { pending.success(mapOf(
-                        "approved" to false, "message" to evidence.message
-                    )) }
-                } else {
-                    Thread({
-                        // Reuse MonitorService's loaded Gemma engine to avoid
-                        // loading a second 584MB model into memory.
-                        val gemmaDecision = try {
-                            MonitorService.activeInstance?.reviewProof(
-                                EscapeMission(snapshotTitle, instruction, source, tag), evidence
-                            )
-                        } catch (_: Throwable) { null }
-                        activity.runOnUiThread {
-                            val sameMission = MonitorService.activeInstance?.isProofReady() == true &&
-                                preferences.getBoolean(EscapeKeys.LOCKED, false) &&
-                                preferences.getBoolean(EscapeKeys.RUNNING, false) &&
-                                preferences.getString(EscapeKeys.MISSION_TITLE, "") == snapshotTitle &&
-                                preferences.getString(EscapeKeys.MISSION_PROOF_TAG, "") == tag &&
-                                preferences.getString(EscapeKeys.MISSION_PROOF_CODE, "") == code
-                            val approved = sameMission && gemmaDecision != false
-                            if (approved) sendMonitorAction(EscapeKeys.ACTION_PHOTO_APPROVED)
-                            pending.success(mapOf(
-                                "approved" to approved,
-                                "reviewer" to if (gemmaDecision == null) "offline-mlkit" else "gemma-text-plus-mlkit",
-                                "message" to when {
-                                    !sameMission -> "Mission changed. Please submit proof for the new mission."
-                                    gemmaDecision == false -> "Gemma could not confirm the written result matches the challenge. Try again with clearer, more relevant words."
-                                    gemmaDecision == true -> "Gemma reviewed the extracted proof. Social access earned!"
-                                    else -> "On-device proof check passed. Social access earned!"
-                                }
-                            ))
-                        }
-                    }, "escape-proof-review").start()
-                }
-            }
+            capturedProofFile = file
+            capturedProofSignature = proofSignature()
+            pending.success(mapOf(
+                "captured" to true,
+                "path" to file.absolutePath,
+                "message" to "Photo ready. Check the preview, then tap Analyze photo."
+            ))
             return true
         }
         if (requestCode != MODEL_PICK_REQUEST_CODE) return false
