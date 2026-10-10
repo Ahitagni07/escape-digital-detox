@@ -22,7 +22,7 @@
     </td>
     <td align="center" valign="top">
       <b>3. Walking Progress</b><br><br>
-      <img src="screenshots/walking-completed.png" width="190">
+      <img src="screenshots/walking-completed.PNG" width="190">
     </td>
   </tr>
   <tr>
