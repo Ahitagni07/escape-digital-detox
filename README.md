@@ -8,11 +8,43 @@
 2. **Discover:** Find the nature clue — grass, trees, flowers or water.
 3. **Capture → Preview → Analyze:** Take a new photo. If the on-device image check approves it, earn a limited social-app access window.
 
-<p align="center">
-  <img src="screenshots/youtube-blocked.jpg" alt="YouTube blocked by ESCAPE" width="210" />
-  <img src="screenshots/outdoor-quest.jpg" alt="Outdoor quest with nature clue" width="210" />
-  <img src="screenshots/photo-approved.jpg" alt="Nature-photo evidence approved" width="210" />
-</p>
+### ESCAPE in Action
+
+<table>
+  <tr>
+    <td align="center" valign="top">
+      <b>1. Youtube blocked</b><br><br>
+      <img src="screenshots/youtube-blocked.PNG" width="190">
+    </td>
+    <td align="center" valign="top">
+      <b>2. Outdoor Quest</b><br><br>
+      <img src="screenshots/outdoor-quest.jpg" width="190">
+    </td>
+    <td align="center" valign="top">
+      <b>3. Walking Progress</b><br><br>
+      <img src="screenshots/walking-completed.png" width="190">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top">
+      <b>4. Photo Preview</b><br><br>
+      <img src="screenshots/photo-preview.PNG" width="190">
+    </td>
+    <td align="center" valign="top">
+      <b>5. Photo Analyzing</b><br><br>
+      <img src="screenshots/photo-analyzing-success.PNG" width="190">
+    </td>
+  </tr>
+</table>
+
+## 🎬 Watch ESCAPE in Action
+
+See how ESCAPE encourages outdoor exploration and rewards real-world adventures.
+
+- 🌿 [Demo 1 — Social App Blocking & Outdoor Quest](https://youtube.com/shorts/wxvO3ALlOps)
+- 📸 [Demo 2 — Offline Nature Photo Verification](https://youtube.com/shorts/SSaOgFDI9xg)
+
+Both recordings were captured on a real Android device. Nature-photo analysis was tested without internet connectivity.
 
 *Screenshots from an Android phone test; the demo uses shortened mission targets.*
 
