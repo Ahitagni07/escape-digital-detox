@@ -131,6 +131,16 @@ class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
           Text(c.missionTitle, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 7),
           Text(c.missionInstruction),
+          if (c.indoorChoiceAvailable && !c.missionActive) ...[
+            const SizedBox(height: 6),
+            const Text('Outdoor and indoor are both available after 18:00. '
+                'The quest details update when you choose one.'),
+          ],
+          if (c.missionActive) ...[
+            const SizedBox(height: 6),
+            const Text('This quest stays active across 18:00. '
+                'Its timer, steps and photo requirement will not reset.'),
+          ],
           const Divider(height: 27),
           clue('1', movementLabel, moveGoal, moveDone),
           if (c.missionActive) ...[
@@ -148,13 +158,27 @@ class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
               'Capture a new photo, check the preview, then tap Analyze photo. '
               'Everything stays on your phone.', _approved == true),
           const SizedBox(height: 14),
-          if (!c.missionActive)
+          if (!c.missionActive) ...[
+            if (c.indoorChoiceAvailable) ...[
+              Text('Choose one quest to earn social access:',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+            ],
             FilledButton.icon(
               onPressed: _busy ? null : () => _run(c.startMission),
-              icon: Icon(night ? Icons.edit_note : Icons.directions_walk),
-              label: Text(night ? 'BEGIN INDOOR QUEST' : 'START WALK QUEST'),
+              icon: const Icon(Icons.directions_walk),
+              label: Text(c.indoorChoiceAvailable ? 'START OUTDOOR QUEST' : 'START WALK QUEST'),
             ),
-          if (!c.missionActive && weekend && !night) ...[
+            if (c.indoorChoiceAvailable) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _run(c.startIndoorQuest),
+                icon: const Icon(Icons.edit_note),
+                label: const Text('START INDOOR QUEST'),
+              ),
+            ],
+          ],
+          if (!c.missionActive && weekend && !c.indoorChoiceAvailable) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: _busy ? null : () => _run(c.startCycleQuest),
@@ -233,7 +257,7 @@ class _RecoveryMissionCardState extends State<RecoveryMissionCard> {
             ),
           ],
           const SizedBox(height: 9),
-          Text(night ? 'After dark: indoor proof only. No night cycling required.'
+          Text(night ? 'Indoor proof: photograph your finished activity. Outdoor walking remains optional after 18:00.'
                : 'Keep the phone in your pocket while moving. Stop safely before taking a photo.',
                style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),

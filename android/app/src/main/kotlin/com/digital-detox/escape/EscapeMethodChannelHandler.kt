@@ -170,10 +170,18 @@ class EscapeMethodChannelHandler(
                     }
 
                     "startMission" -> {
-                        if (MonitorService.activeInstance == null) {
+                        val choice = call.argument<String>("activity") ?: "walk"
+                        val service = MonitorService.activeInstance
+                        if (service == null) {
                             result.error("monitor_not_running", "Start ESCAPE first", null)
+                        } else if (choice !in listOf("walk", "indoor")) {
+                            result.error("bad_choice", "Choose Indoor or Outdoor.", null)
+                        } else if (preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)) {
+                            result.error("mission_active", "Finish your active quest first.", null)
+                        } else if (choice == "indoor" && !service.canChooseIndoor()) {
+                            result.error("outdoor_only", "Before 18:00, choose an outdoor quest.", null)
                         } else {
-                            sendMonitorAction(EscapeKeys.ACTION_START_MISSION)
+                            sendMonitorAction(EscapeKeys.ACTION_START_MISSION, choice)
                             result.success(true)
                         }
                     }
@@ -584,8 +592,9 @@ class EscapeMethodChannelHandler(
         }
     }
 
-    private fun sendMonitorAction(action: String) {
+    private fun sendMonitorAction(action: String, selectedActivity: String? = null) {
         val intent = Intent(activity, MonitorService::class.java).setAction(action)
+        if (selectedActivity != null) intent.putExtra("activity", selectedActivity)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             activity.startForegroundService(intent)
         } else {
@@ -613,6 +622,7 @@ class EscapeMethodChannelHandler(
             "running" to preferences.getBoolean(EscapeKeys.RUNNING, false),
             "locked" to preferences.getBoolean(EscapeKeys.LOCKED, false),
             "missionActive" to preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false),
+            "indoorChoiceAvailable" to DaypartClock(activity, preferences).indoorChoiceAvailable(),
             "lockMode" to preferences.getString(
                 EscapeKeys.LOCK_MODE,
                 EscapeKeys.LOCK_MODE_WALK

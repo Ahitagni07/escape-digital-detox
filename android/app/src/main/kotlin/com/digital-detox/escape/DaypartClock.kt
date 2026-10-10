@@ -36,6 +36,17 @@ class DaypartClock(private val context: Context, private val prefs: EscapePrefer
         return wall + (elapsed - previousElapsed)
     }
 
+    /**
+     * The evening choice is a fixed 18:00–06:59 Amsterdam time policy.
+     * It is independent from sunset and never changes a started quest.
+     * DaypartClock.nowMillis() is anchored to elapsedRealtime on this boot.
+     */
+    fun indoorChoiceAvailable(): Boolean {
+        val hour = Calendar.getInstance(homeZone).apply { timeInMillis = nowMillis() }
+            .get(Calendar.HOUR_OF_DAY)
+        return hour >= 18 || hour < 7
+    }
+
     /** Uses previously cached coordinates; never fetches GPS without user permission. */
     fun isEvening(): Boolean {
         val now = nowMillis()

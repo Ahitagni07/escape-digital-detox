@@ -16,6 +16,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
   bool missionActive = false;
   bool accessActive = false;
   String lockMode = 'walk';
+  bool indoorChoiceAvailable = false;
   bool demoMode = false;
   bool showSetup = true;
   bool loading = true;
@@ -193,6 +194,7 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
       accessRemainingSeconds =
           (result['accessRemainingSeconds'] as num?)?.toInt() ?? 0;
       lockMode = result['lockMode']?.toString() ?? 'walk';
+      indoorChoiceAvailable = result['indoorChoiceAvailable'] == true;
       walkSeconds = (result['walkSeconds'] as num?)?.toInt() ?? 0;
       walkSteps = (result['walkSteps'] as num?)?.toInt() ?? 0;
       walkTargetSeconds = (result['walkTargetSeconds'] as num?)?.toInt() ?? 600;
@@ -336,14 +338,28 @@ class EscapeController extends ChangeNotifier with WidgetsBindingObserver {
       return 'Mission is already in progress.';
     }
 
-    await _native.startMission();
+    await _native.startMission(activity: 'walk');
     await Future<void>.delayed(const Duration(milliseconds: 250));
     await refreshStatus();
-    return missionActive
-        ? (lockMode == 'evening'
-            ? 'Indoor quest started. Complete the writing activity, then take a photo.'
-            : 'Walking quest started. Pocket your phone and enjoy your surroundings.')
+    return missionActive && missionActivity == 'walk'
+        ? 'Outdoor quest started. Your walking steps and time are preserved after 18:00.'
         : 'Quest could not start. Check ESCAPE permissions.';
+  }
+
+  Future<String> startIndoorQuest() async {
+    if (!serviceRunning || !locked) return 'No quest is waiting.';
+    if (missionActive) return 'Finish your current quest first.';
+    if (!indoorChoiceAvailable) return 'Indoor quests become available at 18:00.';
+    try {
+      await _native.startMission(activity: 'indoor');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await refreshStatus();
+      return missionActive && missionActivity == 'indoor'
+          ? 'Indoor quest started. Complete the activity and photograph the result.'
+          : 'Could not start the indoor quest.';
+    } on PlatformException catch (e) {
+      return e.message ?? 'Could not start the indoor quest.';
+    }
   }
 
   Future<String> startCycleQuest() async {

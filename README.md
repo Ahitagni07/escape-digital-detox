@@ -1,55 +1,46 @@
-# ESCAPE 🌱 — Less scrolling. More strolling.
+# ESCAPE 🌱 — The World Is Your Password
 
-**The world is your password.** ESCAPE is an experimental Android digital-detox app that encourages you to step away from social media and do something real before you scroll again.
-
-Built for the **Hacktoberfest 2026 Touch Grass** challenge, with privacy-first, on-device AI.
+**Less scrolling. More strolling.** An experimental Android app that encourages you to step outside before returning to social media. Built for the [Hacktoberfest 2026 Touch Grass challenge](https://dev.to/challenges/hacktoberfest-week1-2026-10-05).
 
 ## How it works
 
-1. **Choose the social apps** you want ESCAPE to protect.
-2. **Earn your scroll:** complete a short walking quest, find the nature clue (grass, a tree, a flower or water), and take a **fresh photo** inside the app.
-3. **Unlock temporarily:** ESCAPE checks your movement and photo **on your phone**, then grants a limited social-media window (30 minutes by default).
-
-**More ways to escape**
-
-- 🚲 **Weekends:** choose an optional bicycle quest or discover nearby parks and cycleway segments. Nearby search requires internet; saved results can be reused offline.
-- 🌙 **After dark:** try a nature-inspired paper activity at home and photograph the finished work instead of going out at night.
-- 🔔 **Gentle reminders:** receive new mission ideas hourly while protection is active, rather than constant notifications.
-
-## App screenshot
+1. **Walk:** Start an outdoor quest and complete its time/step goal.
+2. **Discover:** Find the nature clue — grass, trees, flowers or water.
+3. **Capture → Preview → Analyze:** Take a new photo. If the on-device image check approves it, earn a limited social-app access window.
 
 <p align="center">
-  <img src="screenshots/Screenshot_2026-10-09-13-14-44-23_d8442cf0c6531d8eb5c2e4edad81a13b.jpg" alt="ESCAPE social-app blocking screen, earlier prototype" width="270" />
+  <img src="screenshots/youtube-blocked.jpg" alt="YouTube blocked by ESCAPE" width="210" />
+  <img src="screenshots/outdoor-quest.jpg" alt="Outdoor quest with nature clue" width="210" />
+  <img src="screenshots/photo-approved.jpg" alt="Nature-photo evidence approved" width="210" />
 </p>
-<p align="center"><em>Youtube is blocked.</em></p>
 
-<p align="center">
-  <img src="screenshots/Screenshot_2026-10-09-13-14-07-51_d8442cf0c6531d8eb5c2e4edad81a13b.jpg" alt="ESCAPE social-app blocking screen, earlier prototype" width="270" />
-</p>
-<p align="center"><em>Walk quest</em></p>
+*Screenshots from an Android phone test; the demo uses shortened mission targets.*
 
-<p align="center">
-  <img src="screenshots/Screenshot_2026-10-09-13-38-04-22_f9ee0578fe1cc94de7482bd41accb329.jpg" alt="ESCAPE social-app blocking screen, earlier prototype" width="270" />
-</p>
-<p align="center"><em>Blocked social app — while opening youtube or instagram or facebook</em></p>
+## More adventures
 
-## Try it on Android
+- **Weekends:** Optional cycling challenges, park discovery and mapped cycleway segments. Finding new places needs internet; saved results can be reused offline.
+- **Before 6 PM:** Outdoor quests only. **After 6 PM:** Choose either an outdoor quest or an indoor nature-inspired activity. A mission already underway continues across 6 PM.
+- **Offline missions:** Local Gemma 3 1B generates creative text prompts, while bundled ML Kit analyzes photos on-device. Gemma does **not** visually inspect the image itself.
 
-This repository currently provides **source code**, not a published app-store release. To run it, install Flutter and the Android SDK, connect an Android phone with USB debugging enabled, and run:
+## Demo and code
+
+- [Project showcase](https://ahitagni07.github.io/escape-digital-detox/) — an informational website, not the Android app.
+- [GitHub Actions checks](https://github.com/Ahitagni07/escape-digital-detox/actions)
+<!-- After publishing the video, add a Watch Demo link here. -->
+
+## Run on Android
+
+Requires Flutter, Android SDK and an Android device with USB debugging. From the repository root:
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-On first launch, follow the in-app setup for **Usage Access**, **Display over other apps**, **Physical Activity**, and **Notifications**. Location is optional for cycling and nearby exploration. You can enable **Demo Mode** to try a short quest.
-
-For creative offline missions, import the compatible **Gemma 3 1B `.litertlm` model** through **ESCAPE → Local AI setup**. The model is separate from the APK; without it, the app can use its built-in fallback missions. Model downloads and nearby place searches require internet, but the core quest, image checking and installed-model inference run locally.
+Grant the requested Android permissions for app usage, overlays, physical activity and notifications. Location is optional for weekend exploration and cycling. In **Local AI setup**, import/download the compatible Gemma `.litertlm` model once (it is distributed separately from the APK). Without Gemma, fallback quests remain available.
 
 ## Privacy and limitations
 
-ESCAPE has **no application backend** for mission data or photographs. It uses local Android sensors, **Gemma 3 1B** for mission text, and **ML Kit** for offline photo checks. Photo recognition and step/GPS measurements are approximate, so approval is not proof that someone physically touched grass. Android may restrict background monitoring; this is a voluntary wellbeing prototype, not a tamper-proof blocker. Never take photos or use your phone while cycling in unsafe conditions.
+ESCAPE processes mission photos on the device; it doesn't run a photo-upload backend. On-device inference and photo checks can work without internet once set up. Downloading the model and searching for new places need internet. Steps and image labels aren't tamper-proof evidence; background blocking behavior varies by device. ESCAPE is a voluntary wellbeing prototype, not parental-control or safety software. Don't use the camera while walking or cycling.
 
-**Built with:** Flutter · Kotlin · LiteRT-LM / Gemma · ML Kit · OpenStreetMap
-
-**License:** [MIT](LICENSE) (model weights have separate license terms).
+**Tech:** Flutter, Kotlin, Gemma/LiteRT-LM, ML Kit, Android sensors, OpenStreetMap. **License:** MIT for the app code; model weights have separate license terms.

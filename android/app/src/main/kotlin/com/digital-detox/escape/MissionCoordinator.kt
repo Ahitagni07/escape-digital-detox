@@ -82,6 +82,7 @@ class MissionCoordinator(
                 if (
                     cached == null &&
                     generated.isNotEmpty() &&
+                    preferences.getString(EscapeKeys.LOCK_MODE, "") == lockMode &&
                     !preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false) &&
                     preferences.getBoolean(EscapeKeys.LOCKED, false)
                 ) {

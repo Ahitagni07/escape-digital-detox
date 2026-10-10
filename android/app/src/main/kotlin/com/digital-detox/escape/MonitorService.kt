@@ -133,7 +133,7 @@ class MonitorService : Service() {
                 ensureMissionLock(sendReminder = true, forceNewMission = true)
             }
 
-            EscapeKeys.ACTION_START_MISSION -> startCurrentMission("walk")
+            EscapeKeys.ACTION_START_MISSION -> startCurrentMission(intent.getStringExtra("activity") ?: "walk")
             EscapeKeys.ACTION_START_RIDE -> startCurrentMission("cycle")
             EscapeKeys.ACTION_PHOTO_APPROVED -> {
                 if (preferences.getBoolean(EscapeKeys.RUNNING, false) &&
@@ -199,41 +199,24 @@ class MonitorService : Service() {
              preferences.getString(EscapeKeys.MISSION_PROOF_CODE, "").isBlank())
         ensureMissionLock(sendReminder = false, forceNewMission = oldEvening)
 
-        var missionActive = preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)
-        var lockMode = currentLockMode()
+        val missionActive = preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)
 
-        // If a mission was waiting before 18:00 but has not started yet, switch it
-        // automatically to an evening screen-free mission. The reverse also happens
-        // the next morning for a mission that was never started overnight.
-        val desiredMode = modeForCurrentTime()
-        // A sunset during an unfinished outdoor quest moves the user to a safe indoor
-        // alternative instead of making them continue cycling or walking in darkness.
-        if (missionActive && desiredMode == EscapeKeys.LOCK_MODE_EVENING &&
-            lockMode != EscapeKeys.LOCK_MODE_EVENING) {
-            ensureMissionLock(sendReminder = true, forceNewMission = true)
-            missionActive = false
-            lockMode = EscapeKeys.LOCK_MODE_EVENING
-        }
-        if (!missionActive && lockMode != desiredMode) {
-            preferences.putString(EscapeKeys.LOCK_MODE, desiredMode)
-            missions.prepareMission(desiredMode) {
-                if (preferences.getBoolean(EscapeKeys.LOCKED, false) &&
-                    !preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)) {
-                    sendCurrentMissionReminder()
-                }
-            }
-            scheduleNextReminder()
-            lockMode = desiredMode
+        // NEVER change a running quest because the clock crosses 18:00 (or 07:00).
+        // Its timer, step baseline, evidence subject and activity stay frozen.
+        // A waiting indoor quest from last night is reset to an outdoor quest
+        // only when the morning outdoor-only window begins.
+        if (!missionActive && !canChooseIndoor() &&
+            currentLockMode() == EscapeKeys.LOCK_MODE_EVENING) {
+            ensureMissionLock(sendReminder = false, forceNewMission = true)
         }
 
         maybeSendMissionReminder()
-        missionActive = preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)
 
         if (missionActive) {
             val progress = recoveryTracker.current(
                 preferences.getInt(EscapeKeys.WALK_SECONDS_TARGET, 600),
                 preferences.getInt(EscapeKeys.EFFECTIVE_MIN_STEPS, 600),
-                requireSteps = desiredMode != EscapeKeys.LOCK_MODE_EVENING
+                requireSteps = currentLockMode() != EscapeKeys.LOCK_MODE_EVENING
             )
             // Once per quest, nudge gently when movement is complete.
             if (isProofReady() && !preferences.getBoolean(EscapeKeys.MOVEMENT_NOTIFIED, false)) {
@@ -311,12 +294,29 @@ class MonitorService : Service() {
         }
     }
 
+    /** Used by the UI; availability is distinct from the current quest type. */
+    fun canChooseIndoor(): Boolean = daypart.indoorChoiceAvailable()
+
     /** Called only from an explicit user action in the visible Flutter app. */
     private fun startCurrentMission(requestedActivity: String) {
         if (!preferences.getBoolean(EscapeKeys.LOCKED, false)) return
         if (preferences.getBoolean(EscapeKeys.MISSION_ACTIVE, false)) return
-        val mode = currentLockMode()
-        val activity = if (mode == EscapeKeys.LOCK_MODE_EVENING) "indoor" else requestedActivity
+        if (requestedActivity !in listOf("walk", "indoor", "cycle")) return
+        if (requestedActivity == "indoor" && !canChooseIndoor()) return
+        // Cycling is still weekend-daylight only; after-dark outdoor means a walk.
+        if (requestedActivity == "cycle" &&
+            (modeForCurrentTime() != EscapeKeys.LOCK_MODE_WEEKEND || canChooseIndoor())) return
+
+        val activity = requestedActivity
+        val mode = if (activity == "indoor") EscapeKeys.LOCK_MODE_EVENING
+                   else modeForCurrentTime()
+        // Choose the correct proof mission before starting. No time/step reset
+        // can occur once MISSION_ACTIVE is true.
+        if (currentLockMode() != mode) {
+            preferences.putString(EscapeKeys.LOCK_MODE, mode)
+            missions.prepareMission(mode)
+            scheduleNextReminder()
+        }
         if (activity == "cycle") {
             if (mode != EscapeKeys.LOCK_MODE_WEEKEND) return
             try {
@@ -345,7 +345,9 @@ class MonitorService : Service() {
         preferences.putBoolean(EscapeKeys.MOVEMENT_NOTIFIED, false)
         recoveryTracker.start()
         preferences.putBoolean(EscapeKeys.MISSION_ACTIVE, true)
-        notifications.update("Quest running — return for a fresh nature photo")
+        notifications.update(if (activity == "indoor")
+            "Indoor quest running — photograph your completed writing"
+            else "Outdoor quest running — return for a fresh nature photo")
     }
 
     private fun restoreHealthForeground() {
@@ -389,7 +391,7 @@ class MonitorService : Service() {
         missions.reviewExtractedEvidence(mission, evidence)
 
     private fun grantAccess(seconds: Int, emergency: Boolean) {
-        val safeSeconds = RewardRules.safeAccessSeconds(seconds)
+        val safeSeconds = max(60, seconds)
         val now = daypart.nowMillis()
         preferences.putLong(EscapeKeys.ACCESS_ISSUED_ELAPSED, SystemClock.elapsedRealtime())
         preferences.putInt(EscapeKeys.ACCESS_ISSUED_BOOT_COUNT, daypart.bootCount())
@@ -412,7 +414,7 @@ class MonitorService : Service() {
         overlay.hide()
         notifications.cancelMissionReminder()
 
-        val minutes = RewardRules.displayMinutes(safeSeconds)
+        val minutes = max(1, (safeSeconds + 59) / 60)
         notifications.showAccessGranted(minutes)
         notifications.update("Social access earned for $minutes minutes")
 
@@ -532,10 +534,11 @@ class MonitorService : Service() {
         preferences.getString(EscapeKeys.LOCK_MODE, EscapeKeys.LOCK_MODE_WALK)
 
     private fun modeForCurrentTime(): String {
-        if (daypart.isEvening()) return EscapeKeys.LOCK_MODE_EVENING
+        // Outdoor quests remain available after 18:00 by explicit choice.
         val calendar = Calendar.getInstance(TimeZone.getTimeZone("Europe/Amsterdam"))
         calendar.timeInMillis = daypart.nowMillis()
-        return if (calendar.get(Calendar.DAY_OF_WEEK) in listOf(Calendar.SATURDAY, Calendar.SUNDAY))
+        return if (!canChooseIndoor() &&
+            calendar.get(Calendar.DAY_OF_WEEK) in listOf(Calendar.SATURDAY, Calendar.SUNDAY))
             EscapeKeys.LOCK_MODE_WEEKEND else EscapeKeys.LOCK_MODE_WALK
     }
 
@@ -545,7 +548,7 @@ class MonitorService : Service() {
         val dow = calendar.get(Calendar.DAY_OF_WEEK)
         val hour = calendar.get(Calendar.HOUR_OF_DAY)
         if (dow != Calendar.SATURDAY && dow != Calendar.SUNDAY) return
-        if (hour !in 9..18 || daypart.isEvening()) return
+        if (hour !in 9..17 || canChooseIndoor()) return
         val dateKey = "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.DAY_OF_YEAR)}"
         if (preferences.getString("weekend_reminder_last_day", "") == dateKey) return
         preferences.putString("weekend_reminder_last_day", dateKey)

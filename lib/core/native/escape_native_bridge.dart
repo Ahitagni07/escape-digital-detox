@@ -85,8 +85,8 @@ class EscapeNativeBridge {
     return await _channel.invokeMethod<bool>('speakMission') ?? false;
   }
 
-  Future<void> startMission() async {
-    await _channel.invokeMethod('startMission');
+  Future<void> startMission({String activity = 'walk'}) async {
+    await _channel.invokeMethod('startMission', {'activity': activity});
   }
 
   Future<void> emergencyUnlock() async {
